@@ -18,8 +18,12 @@ terraform.rc
 
 # Credentials and local environment
 .env
+.envrc
 *.pem
 *.key
+
+# Local backend configuration (contains the state bucket name)
+backend.hcl
 
 # Editor / OS
 .DS_Store

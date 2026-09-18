@@ -1,0 +1,8 @@
+project             = "todolist"
+environment         = "dev"
+aws_region          = "us-east-1"
+vpc_cidr            = "10.0.0.0/16"
+az_count            = 2
+cluster_name        = "todolist-dev"
+budget_limit_usd    = 50
+budget_alert_emails = ["you@example.com"]
