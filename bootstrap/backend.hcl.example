@@ -1,0 +1,5 @@
+# Bootstrap state is self-hosted in the bucket it creates. First-time flow:
+#   1. tofu init -backend=false
+#   2. tofu apply
+#   3. tofu init -migrate-state -backend-config=backend.hcl
+bucket = "todolist-tfstate-<account-id>"

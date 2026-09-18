@@ -140,6 +140,32 @@ custom domain is managed in **Route53** and TLS is issued with **ACM**.
 **Consequences.** HTTPS on the documented hostname, satisfying R3 more strongly than a bare ALB DNS
 name. Adds Route53/ACM work and a required variable that must be set before apply.
 
+## ADR-008 — Remote state, bootstrap, and pipeline model
+
+**Context.** CI runners are ephemeral, so OpenTofu state cannot live on a runner. State must be
+shared, locked, and protected, and the application pipeline must never manage infrastructure.
+
+**Decision.**
+
+- All state is remote. The `bootstrap` root creates the S3 bucket and then stores its own state in
+  it (`key = bootstrap/terraform.tfstate`); the dev root uses `key = dev/terraform.tfstate`. This
+  makes the first bootstrap a two-phase step: apply with local state, then `init -migrate-state`.
+- The state bucket has versioning, SSE-S3 encryption, a public-access block, an HTTPS-only bucket
+  policy, noncurrent-version expiry, and `prevent_destroy = true`.
+- State locking uses S3 native lock files (`use_lockfile = true`, OpenTofu 1.10+), so no DynamoDB
+  table is required.
+- The bucket name is supplied as partial backend configuration and never committed. In CI it is
+  derived at runtime from the caller identity; locally it comes from a gitignored `backend.hcl`.
+- Pipelines authenticate with OIDC and short-lived credentials. A plan is produced as an artifact and
+  applied only after approval. A CI concurrency group and the state lock prevent overlapping runs.
+- Each environment uses a separate state key and its own IAM role. The application deploy pipeline
+  never runs `tofu apply` or `tofu destroy`.
+- Dev teardown destroys only the environment stack; the state bucket and required snapshots persist.
+
+**Consequences.** Every stack is reproducible from remote state, bootstrap is self-hosted after the
+first apply, and infrastructure stays isolated from application releases. `prevent_destroy` requires
+a deliberate code change for an intentional bucket removal.
+
 ## Assumptions
 
 - The AWS account, region, and required service quotas are available.

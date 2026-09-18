@@ -11,6 +11,10 @@ resource "aws_s3_bucket" "state" {
     Name    = local.bucket_name
     Purpose = "opentofu-remote-state"
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_s3_bucket_ownership_controls" "state" {

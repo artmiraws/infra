@@ -42,13 +42,17 @@ implementation. Prod and staging roots are added only if those environments are 
 ## Remote state
 
 The `bootstrap` root creates an S3 bucket with versioning, SSE-S3 encryption, a public access
-block, an HTTPS-only bucket policy, and noncurrent-version expiration. It uses local state and is
-applied once, separately from the disposable dev stack.
+block, an HTTPS-only bucket policy, noncurrent-version expiration, and `prevent_destroy`. Its own
+state is self-hosted in that bucket (`bootstrap/terraform.tfstate`), so the first bootstrap is
+two-phase: apply once with local state, then `tofu init -migrate-state` with the bucket name (see
+`bootstrap/backend.hcl.example`).
 
-The dev environment uses the S3 backend with native file locking (`use_lockfile = true`, OpenTofu
-1.10+), so no DynamoDB table is required. The bucket name is not committed; it is supplied at init
-time through a gitignored `backend.hcl` (see `backend.hcl.example`). State is retained across
-teardown/recreation and is never committed.
+The dev environment uses the same bucket (`dev/terraform.tfstate`) through partial backend
+configuration and native file locking (`use_lockfile = true`, OpenTofu 1.10+), so no DynamoDB table
+is required. The bucket name is never committed; it is supplied through a gitignored `backend.hcl`
+locally and derived at runtime in CI. State is retained across teardown/recreation.
+
+The pipeline and state model is recorded in [`docs/decisions.md`](docs/decisions.md), ADR-008.
 
 ## Networking
 
