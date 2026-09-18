@@ -78,7 +78,8 @@ implementation time and remain in standard support.
   - `kube-proxy` `v1.36.0-eksbuild.25`
   - `aws-ebs-csi-driver` `v1.66.0-eksbuild.1`
 - Helm add-ons (AWS Load Balancer Controller, External Secrets Operator, metrics-server, Cluster
-  Autoscaler): pin chart versions in variables and record them here when applied.
+  Autoscaler): pin chart versions in variables and record them here when applied. The External
+  Secrets Operator chart `2.10.0` is pinned for the initial implementation.
 - Pin the OpenTofu providers (`hashicorp/aws`, `hashicorp/kubernetes`, `hashicorp/helm`) and commit
   `.terraform.lock.hcl`.
 
@@ -203,6 +204,35 @@ adoption is a deliberate migration rather than a competing owner.
 cloud-native pattern, but it requires a bootstrap controller before the cluster is usable and is
 deferred to EPIC-10. Using CI to install cluster add-ons would give the application pipeline
 infrastructure privileges, which ADR-001 rejects.
+
+## ADR-010 — Application secrets
+
+**Context.** The application needs database credentials. Credentials must not be stored in Git or
+set in configuration, and only the workloads that need them should be able to read them.
+
+**Decision.**
+
+- The RDS-managed master credentials are generated and stored by **Secrets Manager**
+  (`manage_master_user_password`); no password appears in code or state, only the secret ARN.
+- The **External Secrets Operator** is installed by this repository with the Helm provider and uses
+  an IRSA role scoped to the specific database secret ARN, granting only
+  `secretsmanager:GetSecretValue` and `secretsmanager:DescribeSecret`.
+- A cluster-scoped `ClusterSecretStore` (`aws-secrets-manager`) authenticates as the operator's
+  service account through the cluster OIDC provider.
+- Ownership is split: this repository owns the operator, its IRSA role, and the store; the
+  application repository owns the `ExternalSecret` (created with the app chart in EPIC-7) that
+  references the store.
+- The `ExternalSecret` syncs the database credentials into a Kubernetes `Secret` consumed by the
+  application; no secret value is committed or printed.
+
+**Rotation and restart.** Secrets Manager rotation updates the source secret. The operator refreshes
+the Kubernetes `Secret` on its refresh interval, but the application reads credentials at startup,
+so a pod restart is required to pick up a rotated password. In-place credential reload is not
+expected.
+
+**Consequences.** Credentials are centralized and access is least-privilege, and state remains free
+of secret values. Rotation requires a restart, which is acceptable for dev and documented as a
+limitation.
 
 ## Assumptions
 

@@ -3,8 +3,8 @@
 OpenTofu-managed AWS foundation for the TodoList DevOps challenge.
 
 - **Scope:** one cost-conscious `dev` environment (EKS + Aurora PostgreSQL + supporting services).
-- **Status:** remote state, VPC/networking, EKS, Aurora, and budget alerts implemented. Secrets and
-  delivery are added in later epics.
+- **Status:** remote state, VPC/networking, EKS, Aurora, External Secrets, and budget alerts
+  implemented. Delivery is added in a later epic.
 
 ## Ownership boundary
 
@@ -65,6 +65,14 @@ The pipeline and state model is recorded in [`docs/decisions.md`](docs/decisions
 - A **single NAT gateway** is a deliberate dev compromise: it is a failure point and can incur
   cross-AZ data-transfer charges when resources in another AZ route through it. Production would use
   one NAT gateway per AZ.
+
+## Secrets
+
+Aurora master credentials are generated and stored by Secrets Manager. The External Secrets Operator
+(installed by this repository with an IRSA role scoped to that secret) syncs them into a Kubernetes
+`Secret` through a `ClusterSecretStore` named `aws-secrets-manager`. The application repository owns
+the `ExternalSecret` that references the store. Rotating the secret requires an application restart,
+because the app reads credentials at startup. See ADR-010.
 
 ## Database
 

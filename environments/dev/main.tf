@@ -58,6 +58,19 @@ module "rds" {
   tags = local.common_tags
 }
 
+module "eso" {
+  source = "../../modules/eso"
+
+  cluster_name      = module.eks.cluster_name
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_issuer       = module.eks.oidc_issuer
+  secret_arns       = [module.rds.master_user_secret_arn]
+
+  tags = local.common_tags
+
+  depends_on = [module.eks, module.rds]
+}
+
 resource "aws_budgets_budget" "monthly" {
   name         = "${var.project}-${var.environment}-monthly"
   budget_type  = "COST"

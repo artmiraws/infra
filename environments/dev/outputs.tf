@@ -89,3 +89,13 @@ output "db_master_user_secret_arn" {
   value       = module.rds.master_user_secret_arn
   sensitive   = true
 }
+
+output "external_secrets_role_arn" {
+  description = "ARN of the External Secrets Operator IRSA role."
+  value       = module.eso.role_arn
+}
+
+output "external_secrets_store_name" {
+  description = "Name of the ClusterSecretStore used by application ExternalSecrets."
+  value       = module.eso.secret_store_name
+}
