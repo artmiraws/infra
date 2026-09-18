@@ -166,6 +166,37 @@ shared, locked, and protected, and the application pipeline must never manage in
 first apply, and infrastructure stays isolated from application releases. `prevent_destroy` requires
 a deliberate code change for an intentional bucket removal.
 
+## ADR-009 — Cluster add-on management
+
+**Context.** EKS needs several cluster add-ons. They can be installed by OpenTofu (`aws_eks_addon`
+and the Helm provider), by a GitOps controller, or by CI. Installing the same release from more than
+one owner causes drift and destructive updates, and the Helm provider does not manage CRDs reliably.
+
+**Decision.**
+
+- AWS-managed add-ons (`vpc-cni`, `coredns`, `kube-proxy`, `aws-ebs-csi-driver`) are installed with
+  the `aws_eks_addon` resource, pinned to explicit versions.
+- Third-party controllers tightly coupled to infrastructure (AWS Load Balancer Controller, External
+  Secrets Operator, metrics-server, Cluster Autoscaler) are installed by this repository with the
+  Helm provider. Chart versions are pinned in variables, and values are wired to Terraform outputs
+  (for example, IRSA role ARNs).
+- CRDs required by a chart are installed explicitly before the chart, rather than relying on the
+  Helm provider to create or upgrade them.
+- Exactly one owner per Kubernetes object. Terraform manages the add-ons above; the application
+  repository owns the app `Deployment`, `Service`, `Ingress`, `HPA`, `PDB`, and `ExternalSecret`; CI
+  owns only the application Helm release.
+- If GitOps (ArgoCD, EPIC-10) is adopted, ownership of in-cluster releases transfers to ArgoCD and
+  Terraform stops managing them. The transfer is explicit, not gradual.
+
+**Consequences.** Add-ons are reproducible, their IAM wiring is reviewable in one plan, and
+`tofu destroy` removes them in order. CRDs need an explicit installation step. A future ArgoCD
+adoption is a deliberate migration rather than a competing owner.
+
+**Alternatives considered.** Managing all in-cluster resources with ArgoCD from the start is the more
+cloud-native pattern, but it requires a bootstrap controller before the cluster is usable and is
+deferred to EPIC-10. Using CI to install cluster add-ons would give the application pipeline
+infrastructure privileges, which ADR-001 rejects.
+
 ## Assumptions
 
 - The AWS account, region, and required service quotas are available.
