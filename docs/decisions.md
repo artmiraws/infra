@@ -92,15 +92,22 @@ v2 is **not** free when idle.
 
 **Decision.**
 
-- Engine: **Aurora PostgreSQL Serverless v2**, latest supported engine version at implementation.
+- Engine: **Aurora PostgreSQL Serverless v2** (`aurora-postgresql`), version **18.4** at decision
+  time; re-check before apply.
 - Capacity: minimum **0.5 ACU**, maximum **2 ACU** for dev; a single writer, no reader.
-- Private connectivity only; a database subnet group across the AZs Aurora requires.
-- Backups: 7-day retention; decide per teardown whether a snapshot is required.
+- Private connectivity only: a database subnet group in the private subnets, with a security group
+  that allows PostgreSQL only from the VPC CIDR. Production would scope this to the node or cluster
+  security group.
+- Master credentials are generated and stored by **Secrets Manager** (`manage_master_user_password`),
+  so no password is set in configuration; the secret is consumed through External Secrets Operator in
+  EPIC-5.
+- Backups: 7-day retention. `skip_final_snapshot` defaults to true because dev data is disposable;
+  set it to false when retention is required.
 - `deletion_protection` disabled for dev, with a documented snapshot step before destroy.
 
-**Consequences.** Minimum ACU and storage charges accrue while the cluster exists; auto-pause
-support depends on engine/version and must be verified, not assumed. Aurora storage is distributed
-across AZs, but a single compute instance is **not** equivalent to redundant compute/failover.
+**Consequences.** Serverless v2 has **no auto-pause**: the cluster accrues at least the minimum ACU
+plus storage while it exists, so idle cost is not zero. Aurora storage is distributed across AZs,
+but a single compute instance is **not** equivalent to redundant compute/failover.
 
 ## ADR-006 — CI access to the EKS API
 

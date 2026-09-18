@@ -3,8 +3,8 @@
 OpenTofu-managed AWS foundation for the TodoList DevOps challenge.
 
 - **Scope:** one cost-conscious `dev` environment (EKS + Aurora PostgreSQL + supporting services).
-- **Status:** remote state, VPC/networking, EKS, and budget alerts implemented. Database, secrets,
-  and delivery are added in later epics.
+- **Status:** remote state, VPC/networking, EKS, Aurora, and budget alerts implemented. Secrets and
+  delivery are added in later epics.
 
 ## Ownership boundary
 
@@ -29,7 +29,8 @@ infra/
 ├── bootstrap/            # S3 remote-state bucket (separate lifecycle)
 ├── modules/
 │   ├── vpc/              # reusable VPC, subnets, NAT, route tables
-│   └── eks/              # EKS cluster, managed node group, IRSA, add-ons
+│   ├── eks/              # EKS cluster, managed node group, IRSA, add-ons
+│   └── rds/              # Aurora PostgreSQL Serverless v2 cluster and writer
 ├── environments/
 │   └── dev/              # dev root: backend, provider, VPC wiring, budget
 └── docs/
@@ -64,6 +65,14 @@ The pipeline and state model is recorded in [`docs/decisions.md`](docs/decisions
 - A **single NAT gateway** is a deliberate dev compromise: it is a failure point and can incur
   cross-AZ data-transfer charges when resources in another AZ route through it. Production would use
   one NAT gateway per AZ.
+
+## Database
+
+Aurora PostgreSQL Serverless v2 runs in the private subnets, reachable only from the VPC CIDR, with
+a single writer (min 0.5 / max 2 ACU) and 7-day backups. The master password is generated and stored
+by Secrets Manager, so no credential is set in configuration. Serverless v2 has **no auto-pause**:
+the minimum ACU and storage accrue while the cluster exists. `skip_final_snapshot` defaults to true
+because dev data is disposable; disable it to retain a snapshot before destroy. See ADR-005.
 
 ## Cluster access
 

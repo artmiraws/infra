@@ -63,3 +63,29 @@ output "node_role_arn" {
   description = "ARN of the dev worker node IAM role."
   value       = module.eks.node_role_arn
 }
+
+output "db_cluster_endpoint" {
+  description = "Writer endpoint of the dev Aurora cluster."
+  value       = module.rds.cluster_endpoint
+}
+
+output "db_cluster_reader_endpoint" {
+  description = "Reader endpoint of the dev Aurora cluster."
+  value       = module.rds.cluster_reader_endpoint
+}
+
+output "db_cluster_port" {
+  description = "Port of the dev Aurora cluster."
+  value       = module.rds.cluster_port
+}
+
+output "db_name" {
+  description = "Initial database name of the dev Aurora cluster."
+  value       = module.rds.database_name
+}
+
+output "db_master_user_secret_arn" {
+  description = "ARN of the Secrets Manager secret holding the dev database credentials."
+  value       = module.rds.master_user_secret_arn
+  sensitive   = true
+}

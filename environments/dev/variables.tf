@@ -92,3 +92,57 @@ variable "admin_principal_arns" {
   type        = list(string)
   default     = []
 }
+
+variable "db_engine_version" {
+  description = "Aurora PostgreSQL engine version."
+  type        = string
+  default     = "18.4"
+}
+
+variable "db_name" {
+  description = "Initial database name."
+  type        = string
+  default     = "todolist"
+}
+
+variable "db_master_username" {
+  description = "Aurora master username."
+  type        = string
+  default     = "todolist"
+}
+
+variable "db_min_capacity" {
+  description = "Minimum Aurora Serverless v2 capacity in ACUs."
+  type        = number
+  default     = 0.5
+}
+
+variable "db_max_capacity" {
+  description = "Maximum Aurora Serverless v2 capacity in ACUs."
+  type        = number
+  default     = 2
+}
+
+variable "db_backup_retention_period" {
+  description = "Aurora backup retention in days."
+  type        = number
+  default     = 7
+}
+
+variable "db_skip_final_snapshot" {
+  description = "Skip the final snapshot on destroy (dev data is disposable)."
+  type        = bool
+  default     = true
+}
+
+variable "db_deletion_protection" {
+  description = "Protect the Aurora cluster from deletion."
+  type        = bool
+  default     = false
+}
+
+variable "db_cloudwatch_logs_exports" {
+  description = "Aurora log types exported to CloudWatch Logs."
+  type        = list(string)
+  default     = []
+}

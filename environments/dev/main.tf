@@ -36,6 +36,28 @@ module "eks" {
   tags = local.common_tags
 }
 
+module "rds" {
+  source = "../../modules/rds"
+
+  name       = "${var.project}-${var.environment}"
+  vpc_id     = module.vpc.vpc_id
+  subnet_ids = module.vpc.private_subnet_ids
+
+  allowed_cidr_blocks = [module.vpc.vpc_cidr]
+
+  engine_version                  = var.db_engine_version
+  database_name                   = var.db_name
+  master_username                 = var.db_master_username
+  min_capacity                    = var.db_min_capacity
+  max_capacity                    = var.db_max_capacity
+  backup_retention_period         = var.db_backup_retention_period
+  skip_final_snapshot             = var.db_skip_final_snapshot
+  deletion_protection             = var.db_deletion_protection
+  enabled_cloudwatch_logs_exports = var.db_cloudwatch_logs_exports
+
+  tags = local.common_tags
+}
+
 resource "aws_budgets_budget" "monthly" {
   name         = "${var.project}-${var.environment}-monthly"
   budget_type  = "COST"
