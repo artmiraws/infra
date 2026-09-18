@@ -6,3 +6,12 @@ az_count            = 2
 cluster_name        = "todolist-dev"
 budget_limit_usd    = 50
 budget_alert_emails = ["you@example.com"]
+
+kubernetes_version          = "1.36"
+node_instance_types         = ["t3.small"]
+node_desired_size           = 1
+node_min_size               = 1
+node_max_size               = 2
+cluster_public_access_cidrs = []
+cluster_enabled_log_types   = []
+admin_principal_arns        = []

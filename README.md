@@ -3,7 +3,7 @@
 OpenTofu-managed AWS foundation for the TodoList DevOps challenge.
 
 - **Scope:** one cost-conscious `dev` environment (EKS + Aurora PostgreSQL + supporting services).
-- **Status:** remote state, VPC/networking, and budget alerts implemented. EKS, database, secrets,
+- **Status:** remote state, VPC/networking, EKS, and budget alerts implemented. Database, secrets,
   and delivery are added in later epics.
 
 ## Ownership boundary
@@ -28,7 +28,8 @@ owned by this repository. The application repository only owns the app's `Ingres
 infra/
 ├── bootstrap/            # S3 remote-state bucket (separate lifecycle)
 ├── modules/
-│   └── vpc/              # reusable VPC, subnets, NAT, route tables
+│   ├── vpc/              # reusable VPC, subnets, NAT, route tables
+│   └── eks/              # EKS cluster, managed node group, IRSA, add-ons
 ├── environments/
 │   └── dev/              # dev root: backend, provider, VPC wiring, budget
 └── docs/
@@ -63,6 +64,19 @@ The pipeline and state model is recorded in [`docs/decisions.md`](docs/decisions
 - A **single NAT gateway** is a deliberate dev compromise: it is a failure point and can incur
   cross-AZ data-transfer charges when resources in another AZ route through it. Production would use
   one NAT gateway per AZ.
+
+## Cluster access
+
+The EKS API endpoint is private by default: `cluster_public_access_cidrs` is empty, so only in-VPC
+clients can reach it. The CI runner runs inside the VPC and uses the private endpoint. An operator
+who needs `kubectl` from outside the VPC sets their own address range (for example
+`["203.0.113.10/32"]`), which enables the public endpoint restricted to those CIDRs only; it is never
+left open to `0.0.0.0/0`. See ADR-006.
+
+The module installs the managed `vpc-cni`, `coredns`, `kube-proxy`, and `aws-ebs-csi-driver`
+add-ons, and creates an IAM OIDC provider so workloads (starting with the EBS CSI controller) can
+use IRSA. Worker nodes run in private subnets with a single `t3.small` node by default, scaling to
+two.
 
 ## Cost controls
 

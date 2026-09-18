@@ -27,3 +27,39 @@ output "nat_gateway_id" {
   description = "ID of the dev NAT gateway."
   value       = module.vpc.nat_gateway_id
 }
+
+output "cluster_name" {
+  description = "Name of the dev EKS cluster."
+  value       = module.eks.cluster_name
+}
+
+output "cluster_endpoint" {
+  description = "API server endpoint of the dev EKS cluster."
+  value       = module.eks.cluster_endpoint
+}
+
+output "cluster_version" {
+  description = "Kubernetes version of the dev EKS cluster."
+  value       = module.eks.cluster_version
+}
+
+output "cluster_certificate_authority_data" {
+  description = "Base64 certificate authority data for the dev EKS cluster."
+  value       = module.eks.cluster_certificate_authority_data
+  sensitive   = true
+}
+
+output "cluster_security_group_id" {
+  description = "Cluster security group ID created by EKS."
+  value       = module.eks.cluster_security_group_id
+}
+
+output "oidc_provider_arn" {
+  description = "ARN of the IAM OIDC provider for IRSA."
+  value       = module.eks.oidc_provider_arn
+}
+
+output "node_role_arn" {
+  description = "ARN of the dev worker node IAM role."
+  value       = module.eks.node_role_arn
+}

@@ -18,6 +18,24 @@ module "vpc" {
   tags         = local.common_tags
 }
 
+module "eks" {
+  source = "../../modules/eks"
+
+  cluster_name = var.cluster_name
+  subnet_ids   = module.vpc.private_subnet_ids
+
+  kubernetes_version          = var.kubernetes_version
+  node_instance_types         = var.node_instance_types
+  node_desired_size           = var.node_desired_size
+  node_min_size               = var.node_min_size
+  node_max_size               = var.node_max_size
+  cluster_public_access_cidrs = var.cluster_public_access_cidrs
+  cluster_enabled_log_types   = var.cluster_enabled_log_types
+  admin_principal_arns        = var.admin_principal_arns
+
+  tags = local.common_tags
+}
+
 resource "aws_budgets_budget" "monthly" {
   name         = "${var.project}-${var.environment}-monthly"
   budget_type  = "COST"

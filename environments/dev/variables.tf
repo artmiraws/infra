@@ -44,3 +44,51 @@ variable "budget_alert_emails" {
   description = "Email addresses that receive AWS Budget alerts."
   type        = list(string)
 }
+
+variable "kubernetes_version" {
+  description = "Kubernetes version for the dev EKS cluster."
+  type        = string
+  default     = "1.36"
+}
+
+variable "node_instance_types" {
+  description = "Instance types for the dev managed node group."
+  type        = list(string)
+  default     = ["t3.small"]
+}
+
+variable "node_desired_size" {
+  description = "Desired number of dev worker nodes."
+  type        = number
+  default     = 1
+}
+
+variable "node_min_size" {
+  description = "Minimum number of dev worker nodes."
+  type        = number
+  default     = 1
+}
+
+variable "node_max_size" {
+  description = "Maximum number of dev worker nodes."
+  type        = number
+  default     = 2
+}
+
+variable "cluster_public_access_cidrs" {
+  description = "CIDRs allowed to reach the public EKS API endpoint. Empty keeps it private-only."
+  type        = list(string)
+  default     = []
+}
+
+variable "cluster_enabled_log_types" {
+  description = "EKS control plane log types sent to CloudWatch Logs."
+  type        = list(string)
+  default     = []
+}
+
+variable "admin_principal_arns" {
+  description = "IAM principals granted cluster-admin through EKS access entries."
+  type        = list(string)
+  default     = []
+}
