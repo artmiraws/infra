@@ -3,8 +3,8 @@
 OpenTofu-managed AWS foundation for the TodoList DevOps challenge.
 
 - **Scope:** one cost-conscious `dev` environment (EKS + Aurora PostgreSQL + supporting services).
-- **Status:** remote state, VPC/networking, EKS, Aurora, External Secrets, and budget alerts
-  implemented. Delivery is added in a later epic.
+- **Status:** implemented and verified (VPC, EKS, Aurora, ECR, secrets, ALB/DNS, cluster add-ons,
+  self-hosted CI runners, budgets, and an infra pipeline). See [`docs/runbook.md`](docs/runbook.md).
 
 ## Ownership boundary
 
@@ -14,32 +14,41 @@ application's own Kubernetes objects.
 
 | Owner | Manages |
 |---|---|
-| `infra/` (this repo, OpenTofu + bootstrap Helm) | VPC/subnets/NAT, EKS cluster and node group, IAM/OIDC/IRSA, cluster add-ons (VPC CNI, CoreDNS, kube-proxy, EBS CSI, AWS Load Balancer Controller, External Secrets Operator, metrics-server, Cluster Autoscaler), Aurora, Secrets Manager, ECR, Route53 records, ACM certificate, self-hosted CI runner |
-| `todolist-app/` (app repo) | Application image, Helm chart, GitHub Actions workflow, Kubernetes resources for the app (Deployment, Service, Ingress, HPA, PDB, ExternalSecret) |
-| GitHub Actions | Builds the image, publishes to ECR, and runs `helm upgrade` for the application release only |
+| `infra/` (this repo, OpenTofu + Helm) | VPC/subnets/NAT, EKS cluster and node group, IAM/OIDC/IRSA, cluster add-ons (VPC CNI, CoreDNS, kube-proxy, EBS CSI, AWS Load Balancer Controller, External Secrets Operator, metrics-server, Cluster Autoscaler, ARC runners), Aurora, Secrets Manager, ECR, Route53 records, ACM certificate, and the CI runners |
+| `todolist-app/` (app repo) | Application image, Helm chart, GitHub Actions workflows, and the app's Kubernetes objects (Deployment, Service, Ingress, HPA, PDB, ExternalSecret) |
+| GitHub Actions | Builds the image, publishes to ECR, and runs `helm upgrade` for the application release only; release-please manages versions |
 
-Cluster add-on bootstrap (including the Load Balancer Controller and External Secrets Operator) is
-owned by this repository. The application repository only owns the app's `Ingress` and
-`ExternalSecret`, which reference those controllers.
+Cluster add-on bootstrap (including the Load Balancer Controller, External Secrets Operator, and the
+ARC runners) is owned by this repository. The application repository only owns the app's `Ingress`
+and `ExternalSecret`, which reference those controllers.
 
 ## Layout
 
 ```text
 infra/
-├── bootstrap/            # S3 remote-state bucket (separate lifecycle)
+├── bootstrap/                # S3 remote-state bucket (separate lifecycle)
 ├── modules/
-│   ├── vpc/              # reusable VPC, subnets, NAT, route tables
-│   ├── eks/              # EKS cluster, managed node group, IRSA, add-ons
-│   └── rds/              # Aurora PostgreSQL Serverless v2 cluster and writer
+│   ├── vpc/                  # VPC, subnets, NAT, route tables
+│   ├── eks/                  # EKS cluster, managed node group, IRSA, managed add-ons
+│   ├── rds/                  # Aurora PostgreSQL Serverless v2 cluster and writer
+│   ├── ecr/                  # application image repository
+│   ├── eso/                  # External Secrets Operator + ClusterSecretStore
+│   ├── alb/                  # AWS Load Balancer Controller
+│   ├── dns/                  # ACM certificate + ExternalDNS
+│   ├── arc/                  # ARC controller + app runner scale set
+│   ├── infra-runner/         # dedicated infra runner scale set
+│   ├── app-secrets/          # generated application credentials in Secrets Manager
+│   ├── metrics-server/       # HPA metrics
+│   └── cluster-autoscaler/   # node scaling
 ├── environments/
-│   └── dev/              # dev root: backend, provider, VPC wiring, budget
+│   └── dev/                  # dev root: backend, providers, modules, SSM wiring, budget
+├── .github/workflows/        # infra pipeline (plan on PR, apply on approval)
 └── docs/
-    ├── decisions.md      # ADR-style record for EPIC-2
-    └── costs.md          # Cost drivers, estimates, and budget model
+    ├── runbook.md            # operations: provision, deploy, access, teardown, recovery
+    ├── decisions.md          # ADR-style decisions
+    ├── costs.md              # Cost drivers, estimates, and budget model
+    └── vendored-charts.md    # Helm chart sources, versions, and checksums
 ```
-
-Additional modules (`eks`, `rds`, `secrets`, `iam`) and their dev resources are added during
-implementation. Prod and staging roots are added only if those environments are approved.
 
 ## Remote state
 
@@ -68,11 +77,13 @@ The pipeline and state model is recorded in [`docs/decisions.md`](docs/decisions
 
 ## Secrets
 
-Aurora master credentials are generated and stored by Secrets Manager. The External Secrets Operator
-(installed by this repository with an IRSA role scoped to that secret) syncs them into a Kubernetes
-`Secret` through a `ClusterSecretStore` named `aws-secrets-manager`. The application repository owns
-the `ExternalSecret` that references the store. Rotating the secret requires an application restart,
-because the app reads credentials at startup. See ADR-010.
+Aurora master credentials are generated and stored by Secrets Manager, and the application's own
+credentials (`SESSION_KEY`, `ADMIN_PASSWORD`, `CLEANUP_TOKEN`) are generated by the `app-secrets`
+module. The External Secrets Operator (installed by this repository with an IRSA role scoped to those
+secrets) syncs them into a Kubernetes `Secret` through a `ClusterSecretStore` named
+`aws-secrets-manager`. The application repository owns the `ExternalSecret` that references the
+store. Rotating a secret requires an application restart, because the app reads credentials at
+startup. See ADR-010.
 
 ## Database
 
@@ -84,16 +95,48 @@ because dev data is disposable; disable it to retain a snapshot before destroy. 
 
 ## Cluster access
 
-The EKS API endpoint is private by default: `cluster_public_access_cidrs` is empty, so only in-VPC
-clients can reach it. The CI runner runs inside the VPC and uses the private endpoint. An operator
-who needs `kubectl` from outside the VPC sets their own address range (for example
-`["203.0.113.10/32"]`), which enables the public endpoint restricted to those CIDRs only; it is never
-left open to `0.0.0.0/0`. See ADR-006.
+The EKS API endpoint is private by default (the `cluster_public_access_cidrs` variable defaults to
+empty). The CI runners run inside the VPC and use the private endpoint. An operator who needs
+`kubectl` from outside the VPC sets their own address range (for example `["203.0.113.10/32"]`),
+which enables the public endpoint restricted to those CIDRs only; it is never left open to
+`0.0.0.0/0`. See ADR-006.
 
 The module installs the managed `vpc-cni`, `coredns`, `kube-proxy`, and `aws-ebs-csi-driver`
-add-ons, and creates an IAM OIDC provider so workloads (starting with the EBS CSI controller) can
-use IRSA. Worker nodes run in private subnets with a single `t3.small` node by default, scaling to
-two.
+add-ons, and creates an IAM OIDC provider so workloads use IRSA. Worker nodes run in private
+subnets; the dev environment uses two `t3.small` nodes (min 1 / max 3), because `t3.small` supports
+only 11 pods per node.
+
+## Cluster add-ons and CI runners
+
+- **metrics-server** provides HPA metrics; **Cluster Autoscaler** scales the node group (min 1 /
+  max 3) using IRSA and the node group's autoscaler tags.
+- **ARC** runs two self-hosted runner scale sets: `arc-runner-set` (app deploys; IRSA with ECR push,
+  `eks:DescribeCluster`, and read access to the SSM wiring) and `arc-infra-runner` (infra pipeline;
+  a separate, broad role). GitHub never connects into the cluster — runners poll GitHub outbound.
+
+## Ingress and DNS
+
+The application is exposed through an ALB created by the AWS Load Balancer Controller from the
+application's Helm-owned `Ingress` (ClusterIP backend). This repository installs the controller and
+ExternalDNS with IRSA roles; the application chart owns the `Ingress`.
+
+- ACM issues and DNS-validates a certificate for `dev.todolist.<base_domain>` through Route53.
+- ExternalDNS creates the Route53 record for the Ingress host from `spec.rules[].host`.
+- A literal `Service type: LoadBalancer` is intentionally not used; it would normally create an NLB
+  (L4) without host/path routing or ACM integration. See ADR-007.
+
+## App wiring (SSM)
+
+The dev root publishes non-secret wiring as SSM parameters under `/todolist/dev/` (cluster name, ECR
+URL, DB endpoint/port/name, secret ARNs, hostname, certificate ARN, store name, runner scale set).
+The app pipeline reads them, so the wiring has one source of truth and no values are duplicated in
+the app repo.
+
+## Pipelines
+
+- **Infra pipeline** (`.github/workflows/infra.yml`): `tofu plan` on PR, `tofu apply` on
+  `workflow_dispatch` gated by the `infra` GitHub Environment (required reviewers).
+- **App pipeline** (in the app repo): build, scan, ECR, Helm deploy, smoke test on push to `main`.
 
 ## Cost controls
 
@@ -102,4 +145,5 @@ two.
 - Dev is created for validation/demo windows and destroyed afterward. Scaling nodes to zero does not
   stop EKS control-plane, storage, ALB, NAT, or Aurora charges.
 
-See [`docs/decisions.md`](docs/decisions.md) and [`docs/costs.md`](docs/costs.md).
+See [`docs/runbook.md`](docs/runbook.md), [`docs/decisions.md`](docs/decisions.md), and
+[`docs/costs.md`](docs/costs.md).

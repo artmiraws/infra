@@ -9,7 +9,7 @@ Planning estimate for the `dev` EKS environment in `us-east-1`.
 ## Assumptions
 
 - Region `us-east-1`, on-demand pricing, no Savings Plans/Reservations.
-- One `t3.small` worker node (2 vCPU, 2 GiB), min 1 / max 2 (see ADR-003).
+- Two `t3.small` worker nodes (2 vCPU, 2 GiB), min 1 / max 3 (see ADR-003).
 - Single NAT gateway (documented dev compromise).
 - Aurora PostgreSQL Serverless v2, one writer, min 0.5 ACU / max 2 ACU.
 - Small data volumes and low traffic; 2 GB of ECR images; 1 GB/month of logs.
@@ -37,8 +37,8 @@ Planning estimate for the `dev` EKS environment in `us-east-1`.
 | Component | Estimate |
 |---|---|
 | EKS control plane (20 h × 0.10) | US$2.00 |
-| EC2 node (20 h × 0.0232) | US$0.46 |
-| EBS (40 GB prorated) | US$0.09 |
+| EC2 nodes (2 × 20 h × 0.0232) | US$0.93 |
+| EBS (60 GB prorated) | US$0.13 |
 | NAT (20 h + 5 GB) | US$1.13 |
 | Public IPv4 (2 × 20 h) | US$0.20 |
 | ALB (20 h + LCU) | US$0.61 |
@@ -46,26 +46,26 @@ Planning estimate for the `dev` EKS environment in `us-east-1`.
 | Aurora storage + I/O | US$0.05 |
 | ECR storage (2 GB) | US$0.20 |
 | Logs + data transfer | US$0.60 |
-| **Total** | **≈ US$6.5** |
+| **Total** | **≈ US$7.0** |
 
-Variable cost is roughly **US$0.31 per active hour**. ECR storage remains between windows.
+Variable cost is roughly **US$0.33 per active hour**. ECR storage remains between windows.
 
 ## Scenario B — always-on dev (730 hours/month)
 
 | Component | Estimate |
 |---|---|
 | EKS control plane | US$73.00 |
-| EC2 node (`t3.small`) | US$16.94 |
-| EBS | US$3.20 |
+| EC2 nodes (2 × `t3.small`) | US$33.87 |
+| EBS | US$4.80 |
 | NAT | US$33.75 |
 | Public IPv4 | US$7.30 |
 | ALB | US$22.27 |
 | Aurora compute (0.5 ACU) | US$43.80 |
 | Aurora storage + I/O | US$1.50 |
 | ECR + logs + transfer | US$2.70 |
-| **Total** | **≈ US$204/month** |
+| **Total** | **≈ US$223/month** |
 
-An always-on dev stack is about **4× the US$50 budget**, and the EKS control plane alone is
+An always-on dev stack is about **4.5× the US$50 budget**, and the EKS control plane alone is
 ~US$73/month. This is why dev is created only for validation/demo windows and destroyed afterward.
 Node size is a minor cost factor: `t3.medium` instead of `t3.small` adds only ~US$19/month
 always-on, or ~US$0.53 for a 20-hour window.
