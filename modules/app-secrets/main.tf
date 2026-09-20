@@ -15,7 +15,8 @@ resource "random_password" "cleanup_token" {
 }
 
 resource "aws_secretsmanager_secret" "this" {
-  name = var.name
+  name                    = var.name
+  recovery_window_in_days = var.recovery_window_in_days
 
   tags = merge(var.tags, { Name = var.name })
 }

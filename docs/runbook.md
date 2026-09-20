@@ -105,6 +105,7 @@ kubectl get nodes -o wide
 | ALB webhook `x509` errors | The ALB controller webhook cert rotated. `keepTLSSecret` prevents this on upgrades. |
 | Destroy fails: `DependencyViolation` on a subnet/IGW, or `ResourceInUseException` on ACM | An orphaned ALB still holds ENIs, public IPs, and the certificate. Delete the ALB (and its target groups and `k8s-*` security groups), wait for the ENIs to disappear, then re-run. See *Teardown*. |
 | Destroy fails: `Unable to uninstall Helm release arc-runner-set` (context deadline exceeded) | Lingering `AutoscalingRunnerSet` CRs/finalizers. Clear them, or remove the ARC release from state. See *Teardown*. |
+| Recreate fails: `a secret with this name is already scheduled for deletion` | A previous teardown deleted the secret with the default 30-day recovery window, so the name is still held. Force-delete it (`aws secretsmanager delete-secret --secret-id <name> --force-delete-without-recovery`) and re-apply, or restore it and import. The `app-secrets` module now sets `recovery_window_in_days = 0`. |
 
 ## Teardown and recreate
 
