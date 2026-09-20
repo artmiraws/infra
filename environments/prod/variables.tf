@@ -52,27 +52,27 @@ variable "kubernetes_version" {
 }
 
 variable "node_instance_types" {
-  description = "Instance types for the dev managed node group."
+  description = "Instance types for the prod managed node group."
   type        = list(string)
   default     = ["t3.small"]
 }
 
 variable "node_desired_size" {
-  description = "Desired number of dev worker nodes (2 for pod-density headroom on t3.small)."
+  description = "Desired number of prod worker nodes (2 for pod-density headroom on t3.small)."
   type        = number
   default     = 2
 }
 
 variable "node_min_size" {
-  description = "Minimum number of dev worker nodes."
+  description = "Minimum number of prod worker nodes."
   type        = number
   default     = 1
 }
 
 variable "node_max_size" {
-  description = "Maximum number of dev worker nodes."
+  description = "Maximum number of prod worker nodes (more headroom than the dev ceiling)."
   type        = number
-  default     = 2
+  default     = 3
 }
 
 variable "cluster_public_access_cidrs" {
