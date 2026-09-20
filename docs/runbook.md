@@ -67,15 +67,19 @@ proposed follow-ups.
 ```bash
 aws eks update-kubeconfig --name todolist-dev --region us-east-1 --alias todolist-dev
 kubectl -n argocd get applications
-kubectl -n argocd get application todolist-dev -o jsonpath='{.status.sync.status} {.status.health.status}'
+kubectl -n argocd get application todolist -o jsonpath='{.status.sync.status} {.status.health.status}'
 kubectl -n argocd port-forward svc/argocd-server 8080:443   # UI/API at https://localhost:8080
 ```
 
 - The initial admin password is in the `argocd-initial-admin-secret` Secret in the `argocd`
   namespace.
-- **Force a refresh:** `kubectl -n argocd annotate application todolist-dev argocd.argoproj.io/refresh=hard --overwrite`.
+- **Force a refresh:** `kubectl -n argocd annotate application todolist argocd.argoproj.io/refresh=hard --overwrite`.
 - **Sync/rollback:** `kubectl -n argocd get application` shows the desired revision; roll back by
   reverting the digest commit (or `argocd app rollback`), not by editing the cluster.
+- **One-time ownership transfer (dev):** Argo CD adopted the objects Helm had created (same release
+  name, so no duplicates). The inert Helm release history was then removed so Argo CD is the sole
+  owner: `kubectl -n todolist delete secret -l owner=helm,name=todolist`. Do **not** run
+  `helm upgrade` for the app afterwards (ADR-012).
 
 ## Access
 
@@ -133,6 +137,22 @@ kubectl get nodes -o wide
 
 **HA distinctions (explicit dev compromises):** pod recovery is not node/AZ HA (one node group, one
 NAT gateway), and a single Aurora writer is not database HA (no reader/failover).
+
+### Prod and GitOps (PROD-PROMOTION / GITOPS)
+
+- **Prod provisioned** (93 resources) from `environments/prod`, independent of dev's state, VPC,
+  database, secrets, and IAM; shared ECR and GitHub App.
+- **Prod access:** `https://prod.todolist.<base_domain>/healthz` → `200`; the ExternalSecret synced
+  and the ALB was created from the app Ingress.
+- **Promotion by digest (no rebuild):** the dev-validated digest was promoted to prod and Argo CD
+  reconciled prod to it (`Synced`/`Healthy`).
+- **Rollback:** reverting the prod digest rolled the deployment back to the previous image; restoring
+  the digest returned it to the promoted image — both reconciled by Argo CD.
+- **Ownership:** CI never runs `helm upgrade`; Argo CD owns the application release in both
+  environments, and the pipelines only commit the desired digest.
+- **Limitations:** prod mirrors dev's footprint (no reader/AZ redundancy) on purpose; the `prod`
+  GitHub Environment reviewer and Argo CD repository credentials (for a private app repo) are set up
+  out of band.
 
 ## Costs
 
