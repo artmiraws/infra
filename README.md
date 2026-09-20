@@ -1,20 +1,20 @@
-# Infrastructure
+# Platform
 
 OpenTofu-managed AWS foundation for the TodoList DevOps challenge.
 
 - **Scope:** one cost-conscious `dev` environment (EKS + Aurora PostgreSQL + supporting services).
 - **Status:** implemented and verified (VPC, EKS, Aurora, ECR, secrets, ALB/DNS, cluster add-ons,
-  self-hosted CI runners, budgets, and an infra pipeline). See [`docs/runbook.md`](docs/runbook.md).
+  self-hosted CI runners, budgets, and a platform pipeline). See [`docs/runbook.md`](docs/runbook.md).
 
 ## Ownership boundary
 
-Infrastructure lifecycle is deliberately separate from application releases. An application deploy
+Platform lifecycle is deliberately separate from application releases. An application deploy
 job must never run `tofu apply` or `tofu destroy`, and infrastructure must never manage the
 application's own Kubernetes objects.
 
 | Owner | Manages |
 |---|---|
-| `infra/` (this repo, OpenTofu + Helm) | VPC/subnets/NAT, EKS cluster and node group, IAM/OIDC/IRSA, cluster add-ons (VPC CNI, CoreDNS, kube-proxy, EBS CSI, AWS Load Balancer Controller, External Secrets Operator, metrics-server, Cluster Autoscaler, ARC runners), Aurora, Secrets Manager, ECR, Route53 records, ACM certificate, and the CI runners |
+| `platform/` (this repo, OpenTofu + Helm) | VPC/subnets/NAT, EKS cluster and node group, IAM/OIDC/IRSA, cluster add-ons (VPC CNI, CoreDNS, kube-proxy, EBS CSI, AWS Load Balancer Controller, External Secrets Operator, metrics-server, Cluster Autoscaler, ARC runners), Aurora, Secrets Manager, ECR, Route53 records, ACM certificate, and the CI runners |
 | `todolist-app/` (app repo) | Application image, Helm chart, GitHub Actions workflows, and the app's Kubernetes objects (Deployment, Service, Ingress, HPA, PDB, ExternalSecret) |
 | GitHub Actions | Builds the image, publishes to ECR, and runs `helm upgrade` for the application release only; release-please manages versions |
 
@@ -25,7 +25,7 @@ and `ExternalSecret`, which reference those controllers.
 ## Layout
 
 ```text
-infra/
+platform/
 ├── bootstrap/                # S3 remote-state bucket (separate lifecycle)
 ├── modules/
 │   ├── vpc/                  # VPC, subnets, NAT, route tables
@@ -42,7 +42,7 @@ infra/
 │   └── cluster-autoscaler/   # node scaling
 ├── environments/
 │   └── dev/                  # dev root: backend, providers, modules, SSM wiring, budget
-├── .github/workflows/        # infra pipeline (plan on PR, apply on approval)
+├── .github/workflows/        # platform pipeline (plan on PR, apply on approval)
 └── docs/
     ├── runbook.md            # operations: provision, deploy, access, teardown, recovery
     ├── decisions.md          # ADR-style decisions
@@ -134,8 +134,8 @@ the app repo.
 
 ## Pipelines
 
-- **Infra pipeline** (`.github/workflows/infra.yml`): `tofu plan` on PR, `tofu apply` on
-  `workflow_dispatch` gated by the `infra` GitHub Environment (required reviewers).
+- **Platform pipeline** (`.github/workflows/platform.yml`): `tofu plan` on PR, `tofu apply` on
+  `workflow_dispatch` gated by the `platform` GitHub Environment (required reviewers).
 - **App pipeline** (in the app repo): build, scan, ECR, Helm deploy, smoke test on push to `main`.
 
 ## Cost controls

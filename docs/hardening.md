@@ -19,7 +19,7 @@ these are the deliberate next steps before anything resembling production traffi
 |---|---|---|---|---|---|
 | HS-01 | Application tests + coverage policy | smoke test after deploy; no unit/integration suite | add a pytest suite, run it in CI, enforce a coverage floor | M | P1 |
 | HS-02 | Dependency scanning | none for `pip`/Actions | Dependabot or Renovate for Python, Docker, and GitHub Actions | S | P1 |
-| HS-03 | IaC scanning | `tofu fmt`/`validate` only | run `trivy config` (or Checkov/tfsec) over `infra/` on PR, fail on high findings | S | P1 |
+| HS-03 | IaC scanning | `tofu fmt`/`validate` only | run `trivy config` (or Checkov/tfsec) over `platform/` on PR, fail on high findings | S | P1 |
 | HS-04 | SAST | none | CodeQL or Semgrep on the app on PR | S | P1 |
 | HS-05 | SBOM + signing + provenance | none | generate an SBOM (Syft) and sign the image (cosign) with SLSA provenance | M | P2 |
 | HS-06 | Verify signatures at admission | none | admit only signed images (Kyverno or a validating webhook) | M | P2 |

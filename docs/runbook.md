@@ -14,7 +14,7 @@ helping them).
   scale (ADR-011).
 - **Cluster add-ons:** External Secrets Operator, AWS Load Balancer Controller, ExternalDNS,
   metrics-server, Cluster Autoscaler, **Argo CD**, and ARC runners (one per environment for the app,
-  one for infra).
+  one for the platform pipeline).
 - **Delivery (GitOps):** GitHub Actions → ARC runner (IRSA, in-VPC) → ECR (by digest) → **commit the
   digest to Git** → Argo CD reconciles the app chart → pods. Access: Route 53 → ALB (ACM TLS) →
   Ingress → Service → pods → Aurora.
@@ -35,21 +35,21 @@ proposed follow-ups.
 
 1. **Bootstrap remote state (once).** Apply with local state, then self-host it:
    ```bash
-   tofu -chdir=infra/bootstrap init -backend=false
-   tofu -chdir=infra/bootstrap apply
-   tofu -chdir=infra/bootstrap init -migrate-state -backend-config=backend.hcl
+   tofu -chdir=platform/bootstrap init -backend=false
+   tofu -chdir=platform/bootstrap apply
+   tofu -chdir=platform/bootstrap init -migrate-state -backend-config=backend.hcl
    ```
 2. **Dev foundation + add-ons.**
    ```bash
-   tofu -chdir=infra/environments/dev init -backend-config=backend.hcl
-   tofu -chdir=infra/environments/dev apply
+   tofu -chdir=platform/environments/dev init -backend-config=backend.hcl
+   tofu -chdir=platform/environments/dev apply
    ```
 3. **Prod foundation + add-ons** (separate state key `prod/terraform.tfstate`).
    ```bash
-   tofu -chdir=infra/environments/prod init -backend-config=backend.hcl
-   tofu -chdir=infra/environments/prod apply
+   tofu -chdir=platform/environments/prod init -backend-config=backend.hcl
+   tofu -chdir=platform/environments/prod apply
    ```
-   Or run the infra pipeline (plan on PR/push, apply with approval) for either root.
+   Or run the platform pipeline (plan on PR/push, apply with approval) for either root.
 
 ## Deploy the app
 
@@ -103,21 +103,55 @@ kubectl get nodes -o wide
 | Pods `Pending` | Node pod-density limit. Cluster Autoscaler adds a node (min 1 / max 3); check `kubectl -n kube-system logs deploy/cluster-autoscaler-aws-cluster-autoscaler`. |
 | App `CrashLoopBackOff` | Database not reachable or the ExternalSecret has not synced: `kubectl -n todolist get externalsecret`, `kubectl -n todolist get configmap todolist -o yaml`. |
 | ALB webhook `x509` errors | The ALB controller webhook cert rotated. `keepTLSSecret` prevents this on upgrades. |
+| Destroy fails: `DependencyViolation` on a subnet/IGW, or `ResourceInUseException` on ACM | An orphaned ALB still holds ENIs, public IPs, and the certificate. Delete the ALB (and its target groups and `k8s-*` security groups), wait for the ENIs to disappear, then re-run. See *Teardown*. |
+| Destroy fails: `Unable to uninstall Helm release arc-runner-set` (context deadline exceeded) | Lingering `AutoscalingRunnerSet` CRs/finalizers. Clear them, or remove the ARC release from state. See *Teardown*. |
 
 ## Teardown and recreate
 
+!!! warning "Order matters"
+    The ALB is created by the AWS Load Balancer Controller, **not** by Terraform. While it exists its
+    ENIs hold the subnets, its public IPs block the internet-gateway detach, and the ACM certificate
+    is in use. Terraform cannot delete any of those until the ALB is gone. Remove the load balancer
+    **before** destroying, or the destroy fails with `DependencyViolation` / `ResourceInUseException`.
+
 1. **Pause app deploys** (disable the workflows) so CI does not race with teardown.
-2. **Remove controller-owned load balancers** (delete the app Ingress and wait for the ALB to be
-   removed) while the cluster is still running.
-3. **Decide on data:** dev data is disposable (`skip_final_snapshot = true`); prod takes a final
-   snapshot and has `deletion_protection = true`, so **disable deletion protection first**.
-4. **Destroy each environment** (state bucket is `prevent_destroy` and is **not** removed):
+2. **Stop GitOps, then remove the load balancer while the cluster is still running.** Argo CD
+   self-heal would recreate a deleted Ingress, so delete the Application first:
    ```bash
-   tofu -chdir=infra/environments/dev destroy
-   tofu -chdir=infra/environments/prod destroy
+   kubectl -n argocd delete application todolist --ignore-not-found
+   kubectl -n todolist delete ingress todolist --ignore-not-found
+   until [ -z "$(aws ec2 describe-network-interfaces \
+     --filters Name=description,Values='ELB app/*' \
+     --query 'NetworkInterfaces[].NetworkInterfaceId' --output text)" ]; do echo waiting; sleep 10; done
    ```
-5. **Recreate:** repeat *Provision*, then push to `main` (dev) and publish a release (prod).
-6. **Audit residual billable resources:** retained snapshots, ECR images, logs, public IPs.
+   If the cluster is already gone, delete the orphaned ALB directly and wait for its ENIs to
+   disappear:
+   ```bash
+   ALB_ARN=$(aws elbv2 describe-load-balancers --names <alb-name> \
+     --query 'LoadBalancers[0].LoadBalancerArn' --output text)
+   aws elbv2 delete-load-balancer --load-balancer-arn "$ALB_ARN"
+   ```
+   Also delete leftover target groups and the ALB controller's `k8s-*` security groups, or the VPC
+   will not delete.
+3. **Clear lingering ARC resources if the ARC Helm uninstall times out** (a known issue; the
+   controller cannot finish removing the `AutoscalingRunnerSet` CRs):
+   ```bash
+   kubectl -n arc-runners delete autoscalingrunnerset --all --ignore-not-found
+   for n in $(kubectl -n arc-runners get autoscalingrunnerset -o name 2>/dev/null); do
+     kubectl -n arc-runners patch "$n" -p '{"metadata":{"finalizers":[]}}' --type=merge; done
+   ```
+   If it still fails, remove the ARC releases from state (the cluster is going away anyway) and
+   re-run: `tofu state rm <arc helm_release addresses>`.
+4. **Decide on data:** dev data is disposable (`skip_final_snapshot = true`); prod takes a final
+   snapshot and has `deletion_protection = true`, so **disable deletion protection first**.
+5. **Destroy each environment** (state bucket is `prevent_destroy` and is **not** removed):
+   ```bash
+   tofu -chdir=environments/dev destroy
+   tofu -chdir=environments/prod destroy -var 'db_deletion_protection=false' -var 'db_skip_final_snapshot=true'
+   ```
+6. **Recreate:** repeat *Provision*, then push to `main` (dev) and publish a release (prod).
+7. **Audit residual billable resources:** retained snapshots, ECR images, logs, public IPs, orphaned
+   load balancers, and target groups.
 
 ## Recovery
 

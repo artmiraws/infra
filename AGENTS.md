@@ -12,7 +12,7 @@ Prod mirrors dev's small footprint to demonstrate a promotion path, not scale (A
   `tofu -chdir=environments/dev init -backend-config=backend.hcl && tofu -chdir=environments/dev plan`
 - Format/validate: `tofu fmt -check -recursive` and `tofu -chdir=<root> validate`
 - Apply/destroy require explicit authorization (protected remote state, cost).
-- The pipeline runs `tofu plan` on PR and `tofu apply` on approval (`.github/workflows/infra.yml`).
+- The pipeline runs `tofu plan` on PR and `tofu apply` on approval (`.github/workflows/platform.yml`).
 
 ## Layout
 - `bootstrap/` — S3 state bucket (separate lifecycle).

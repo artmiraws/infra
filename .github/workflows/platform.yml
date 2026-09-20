@@ -1,4 +1,4 @@
-name: Infra dev
+name: Platform dev
 
 on:
   push:
@@ -8,14 +8,14 @@ on:
       - "**.tfvars.example"
       - "modules/**"
       - "environments/**"
-      - ".github/workflows/infra.yml"
+      - ".github/workflows/platform.yml"
   pull_request:
     paths:
       - "**.tf"
       - "**.tfvars.example"
       - "modules/**"
       - "environments/**"
-      - ".github/workflows/infra.yml"
+      - ".github/workflows/platform.yml"
   workflow_dispatch:
     inputs:
       action:
@@ -27,9 +27,9 @@ on:
 permissions:
   contents: read
 
-# One infra run at a time; the S3 state lock is the second line of defence.
+# One platform run at a time; the S3 state lock is the second line of defence.
 concurrency:
-  group: infra-dev
+  group: platform-dev
   cancel-in-progress: false
 
 env:
@@ -71,8 +71,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply'
     needs: plan
     runs-on: arc-infra-runner
-    # Requires reviewers configured on the `infra` GitHub Environment.
-    environment: infra
+    # Requires reviewers configured on the `platform` GitHub Environment.
+    environment: platform
     steps:
       - uses: actions/checkout@v7
 
