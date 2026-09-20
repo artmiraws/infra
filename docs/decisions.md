@@ -308,6 +308,94 @@ leave two owners for the same objects.
 reverting a commit or syncing a previous revision. Adds ArgoCD to the cluster and a Git write step to
 CI. Argo Rollouts/canary stays a separate optional increment, not part of this transfer.
 
+## ADR-013 — Platform vs application separation, one Argo CD, and the platform contract
+
+**Context.** The first GitOps increment ran one Argo CD per cluster, named clusters after the
+application (`todolist-dev`, `todolist-prod`), and let the dev environment root own the shared ECR
+repository. That works for a single-app challenge but not for a real platform: a cluster hosts many
+services, the platform owns foundational concerns, and an application must not be coupled to another
+environment's lifecycle (destroying dev deleted the shared ECR that prod depended on).
+
+**Decision.**
+
+- **One Argo CD, no hub cluster (for now).** Argo CD runs in the `prod` cluster and manages every
+  environment from a single view. A dedicated hub cluster stays the scale-out option once there are
+  several clusters. Because EKS endpoints are private, Argo CD needs network reachability to each
+  environment's API (VPC peering between environments now, a hub/Transit Gateway later); each
+  environment registers with Argo CD as a cluster.
+- **Platform-scoped naming.** Clusters and platform resources are named for the platform and the
+  environment, never the application (for example `platform-dev`, `platform-prod`). An application
+  name never appears in a platform resource name.
+- **The platform owns foundations and the contract.** The platform repository (renamed from `infra`)
+  owns the clusters, cluster add-ons, Argo CD, ingress/DNS/TLS, the secrets store, and the shared
+  artifact registry (ECR). It publishes a per-environment **contract** in SSM that applications
+  consume; applications never read Terraform state or platform internals.
+- **Applications own their topology.** An application repository holds its chart and an
+  **ApplicationSet** that generates its per-environment Applications. The application pipeline
+  builds, scans, pushes, and commits the desired digest; Argo CD reconciles. Promotion stays
+  digest-based and approval-gated.
+- **Sizing.** `prod` scales to **3** worker nodes (max), more headroom than a two-node ceiling.
+- **Documentation.** Platform documentation is centralized in a new `platform-docs` repository: a
+  static site (which can itself be deployed onto the platform) covering how the platform was planned
+  and built, its contract, and how to onboard an application. Application documentation stays with
+  the application.
+
+**Consequences.** One control plane to operate for GitOps, one place to onboard applications, and a
+clean boundary between platform and application. The platform must solve cross-environment
+reachability for Argo CD (peering or a hub), and the contract must be versioned because applications
+depend on it.
+
+**Open questions (resolve in GITOPS-HUB / PLATFORM-DOCS).**
+
+- Cross-environment connectivity for Argo CD: VPC peering now, hub/Transit Gateway later.
+- How Argo CD consumes the contract: the platform writes wiring into a ConfigMap that Argo CD reads,
+  a render plugin (for example argocd-vault-plugin) reads SSM at render time, or CI writes
+  per-environment values.
+- Which resources the platform provides as a service (database, secrets) versus which the
+  application provisions; today the platform provisions the database for the single app.
+- Static-site tooling for `platform-docs` (for example MkDocs Material, Docusaurus, or plain
+  Markdown served statically).
+
+## ADR-014 — Trunk-based delivery, versioned artifacts, and PR-based promotion
+
+**Context.** Both environments currently track `main`, so a chart/template change on `main` reconciles
+into prod even though the image digest is gated by `gitops/prod.yaml` — the promotion flow is only
+half-enforced. The alternative, long-lived `dev`/`prod` branches, avoids that but introduces branch
+divergence, merge-to-promote fragility, and a moving branch head as the audit target.
+
+**Decision.**
+
+- **One branch (`main`), trunk-based.** No long-lived environment branches; branch-per-environment is
+  **rejected**.
+- **Environment configuration lives in directories** (`envs/dev/`, `envs/prod/`), each pinning the two
+  immutable artifacts: the **image digest** and the **chart version**.
+- **Two versioned artifacts.** The image is built per commit and deployed by **digest** (build tag =
+  commit SHA). The chart is packaged and pushed to ECR as an **OCI** artifact with a **semver** version
+  when a release is published. Version tags on the image are **not** used; the digest is the identity.
+- **dev tracks the chart source on `main`** so chart and app changes are validated continuously; CI
+  updates `envs/dev/values.yaml` with the new digest.
+- **prod pins the released chart version** (OCI) and the promoted digest in `envs/prod/values.yaml`,
+  so `main` commits never reach prod.
+- **Promotion is a pull request**, not a branch merge: it updates `envs/prod/values.yaml` to the
+  dev-validated digest and the released chart version. Merging it is the approval; Argo CD reconciles.
+- **Rollback** is another pull request (or a revert) restoring the previous version and digest.
+
+**Consequences.** `main` affects only dev; prod changes only through a reviewed PR; the deployed
+revision is an explicit pair (chart version + digest) instead of a moving branch head. This requires
+packaging and publishing the chart as an OCI artifact and an ApplicationSet that reads the per-env
+config.
+
+**Promotion flow.**
+
+1. Merge to `main` → the dev pipeline builds, scans, and pushes the image (SHA tag + digest) and
+   commits the digest to `envs/dev/values.yaml`; Argo CD reconciles dev (chart source on `main`).
+2. Publish a release (`vX.Y.Z`) → the release workflow packages the chart as `X.Y.Z` and pushes it to
+   the OCI registry.
+3. The promotion workflow opens a **PR** updating `envs/prod/values.yaml` with the released chart
+   version and the dev-validated digest.
+4. Review and merge the PR → Argo CD reconciles prod (OCI chart `X.Y.Z` + promoted digest).
+5. Rollback: a PR (or a revert) restoring the previous chart version and digest.
+
 ## Assumptions
 
 - The AWS account, region, and required service quotas are available.
