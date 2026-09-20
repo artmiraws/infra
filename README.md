@@ -15,7 +15,7 @@ only what is code-adjacent.
 ```text
 platform/
 ├── bootstrap/                # S3 remote-state bucket (separate lifecycle)
-├── modules/                  # vpc, eks, rds, ecr, eso, alb, dns, arc, infra-runner,
+├── modules/                  # vpc, eks, rds, ecr, eso, alb, dns, acm, arc, infra-runner,
 │                             # app-secrets, metrics-server, cluster-autoscaler, argocd, argocd-app
 ├── environments/             # dev/ and prod/ roots (separate state keys)
 ├── .github/workflows/        # platform pipeline (plan on PR/push, apply on approval)

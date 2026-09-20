@@ -187,3 +187,27 @@ variable "app_repo_url" {
   type        = string
   default     = "https://github.com/artmiraws/todolist-app"
 }
+
+variable "platform_docs_subdomain" {
+  description = "Subdomain for the platform handbook (platform-docs)."
+  type        = string
+  default     = "platform-docs"
+}
+
+variable "platform_docs_repo_url" {
+  description = "Repository holding the platform-docs Helm chart."
+  type        = string
+  default     = "https://github.com/artmiraws/platform-docs"
+}
+
+variable "platform_docs_namespace" {
+  description = "Namespace for the platform handbook."
+  type        = string
+  default     = "platform-docs"
+}
+
+variable "platform_docs_enabled" {
+  description = "Create the Argo CD Application for the platform handbook (requires the platform-docs repository)."
+  type        = bool
+  default     = false
+}

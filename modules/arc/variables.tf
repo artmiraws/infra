@@ -23,6 +23,12 @@ variable "ecr_repository_arn" {
   type        = string
 }
 
+variable "extra_ecr_repository_arns" {
+  description = "Additional ECR repository ARNs the runner may push to."
+  type        = list(string)
+  default     = []
+}
+
 variable "ssm_parameter_path" {
   description = "SSM parameter path prefix the runner may read (empty disables SSM access)."
   type        = string

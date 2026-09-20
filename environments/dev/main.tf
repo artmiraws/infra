@@ -105,9 +105,10 @@ module "arc" {
   oidc_issuer        = module.eks.oidc_issuer
   ecr_repository_arn = module.ecr.repository_arn
 
-  github_config_url      = var.github_config_url
-  github_app_secret_name = var.github_app_secret_name
-  runner_scale_set_name  = var.runner_scale_set_name
+  github_config_url         = var.github_config_url
+  github_app_secret_name    = var.github_app_secret_name
+  runner_scale_set_name     = var.runner_scale_set_name
+  extra_ecr_repository_arns = [module.ecr_docs.repository_arn]
 
   ssm_parameter_path = "/${var.project}/${var.environment}"
 

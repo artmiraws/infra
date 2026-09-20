@@ -57,7 +57,7 @@ data "aws_iam_policy_document" "runner" {
       "ecr:CompleteLayerUpload",
     ]
 
-    resources = [var.ecr_repository_arn]
+    resources = concat([var.ecr_repository_arn], var.extra_ecr_repository_arns)
   }
 
   statement {

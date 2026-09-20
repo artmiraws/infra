@@ -134,3 +134,18 @@ output "arc_runner_scale_set_name" {
   description = "Runner scale set name used as runs-on in workflows."
   value       = module.arc.runner_scale_set_name
 }
+
+output "platform_docs_hostname" {
+  description = "Hostname of the platform handbook."
+  value       = module.acm_docs.hostname
+}
+
+output "platform_docs_certificate_arn" {
+  description = "ACM certificate ARN for the platform handbook."
+  value       = module.acm_docs.certificate_arn
+}
+
+output "platform_docs_ecr_repository_url" {
+  description = "ECR repository URL for the platform handbook image."
+  value       = module.ecr_docs.repository_url
+}
