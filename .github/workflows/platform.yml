@@ -49,14 +49,22 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Install OpenTofu
+      - name: Install tools
         run: |
           set -euo pipefail
           mkdir -p "$HOME/.local/bin"
           curl -fsSL -o /tmp/tofu.zip \
             "https://github.com/opentofu/opentofu/releases/download/v1.11.5/tofu_1.11.5_linux_amd64.zip"
           unzip -q /tmp/tofu.zip -d "$HOME/.local/bin"
+          if ! command -v aws >/dev/null 2>&1; then
+            curl -sS "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+            unzip -q /tmp/awscliv2.zip -d /tmp
+            /tmp/aws/install -i "$HOME/.local/aws-cli" -b "$HOME/.local/bin"
+          fi
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Show identity (IRSA)
+        run: aws sts get-caller-identity
 
       - name: Init
         run: |
@@ -83,13 +91,18 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Install OpenTofu
+      - name: Install tools
         run: |
           set -euo pipefail
           mkdir -p "$HOME/.local/bin"
           curl -fsSL -o /tmp/tofu.zip \
             "https://github.com/opentofu/opentofu/releases/download/v1.11.5/tofu_1.11.5_linux_amd64.zip"
           unzip -q /tmp/tofu.zip -d "$HOME/.local/bin"
+          if ! command -v aws >/dev/null 2>&1; then
+            curl -sS "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+            unzip -q /tmp/awscliv2.zip -d /tmp
+            /tmp/aws/install -i "$HOME/.local/aws-cli" -b "$HOME/.local/bin"
+          fi
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Init
