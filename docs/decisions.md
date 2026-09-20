@@ -43,8 +43,11 @@ short-lived proof of concept that is destroyed after use. Budget target: **US$50
 **Decision.**
 
 - Provision exactly one `dev` EKS environment.
-- Worker node type: **`t3.small`** (2 vCPU, 2 GiB), **one node minimum, two maximum** for rollout
-  and scaling headroom via Cluster Autoscaler.
+- Worker node type: **`t3.small`** (2 vCPU, 2 GiB), **two nodes** (min 1 / max 2). A `t3.small`
+  node supports only **11 pods**, and the system add-ons plus the cluster controllers exceed that on
+  a single node, so two nodes are required for the application and scaling headroom. (Prefix
+  delegation could raise pod density on a single node; it needs node recreation and is a future
+  optimization.)
 - Keep cluster add-ons lean to fit 2 GiB: one CoreDNS replica and one EBS CSI controller replica;
   add Cluster Autoscaler, metrics-server, AWS Load Balancer Controller, and External Secrets
   Operator as the epics require them.
@@ -82,9 +85,15 @@ implementation time and remain in standard support.
   Secrets Operator chart `2.10.0` is pinned for the initial implementation.
 - Pin the OpenTofu providers (`hashicorp/aws`, `hashicorp/kubernetes`, `hashicorp/helm`) and commit
   `.terraform.lock.hcl`.
+- **Vendor the Helm charts** as `.tgz` files under each module's `charts/` directory and reference
+  them by local path, so `plan` and `apply` never depend on external chart repositories. Currently
+  `aws-load-balancer-controller` 3.5.0, `external-secrets` 2.10.0, and `external-dns` 1.22.0.
+  Updating a chart version means re-vendoring the tarball. Sources and SHA-256 checksums are
+  recorded in [`vendored-charts.md`](vendored-charts.md).
 
-**Consequences.** Version choices are reproducible and reviewable. Versions are re-verified at
-apply time.
+**Consequences.** Version choices are reproducible and reviewable, and plans work offline (a
+transient chart-repository failure cannot break `plan`). Versions are re-verified at apply time;
+re-vendoring is a deliberate step when upgrading a chart.
 
 ## ADR-005 — Aurora PostgreSQL Serverless v2 settings
 
@@ -162,6 +171,9 @@ shared, locked, and protected, and the application pipeline must never manage in
   policy, noncurrent-version expiry, and `prevent_destroy = true`.
 - State locking uses S3 native lock files (`use_lockfile = true`, OpenTofu 1.10+), so no DynamoDB
   table is required.
+- S3 lock files have no TTL: a cancelled, timed-out, or failed run can leave a stale lock. Recovery
+  is `tofu force-unlock` after confirming no run is active, never `-lock=false`. CI uses a
+  per-environment concurrency group so two runs cannot race.
 - The bucket name is supplied as partial backend configuration and never committed. In CI it is
   derived at runtime from the caller identity; locally it comes from a gitignored `backend.hcl`.
 - Pipelines authenticate with OIDC and short-lived credentials. A plan is produced as an artifact and
