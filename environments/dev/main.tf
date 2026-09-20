@@ -113,6 +113,25 @@ module "arc" {
   depends_on = [module.eks, module.eso]
 }
 
+module "metrics_server" {
+  source = "../../modules/metrics-server"
+
+  depends_on = [module.eks]
+}
+
+module "cluster_autoscaler" {
+  source = "../../modules/cluster-autoscaler"
+
+  cluster_name      = module.eks.cluster_name
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_issuer       = module.eks.oidc_issuer
+  region            = var.aws_region
+
+  tags = local.common_tags
+
+  depends_on = [module.eks]
+}
+
 resource "aws_budgets_budget" "monthly" {
   name         = "${var.project}-${var.environment}-monthly"
   budget_type  = "COST"
