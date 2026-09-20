@@ -23,6 +23,12 @@ variable "ecr_repository_arn" {
   type        = string
 }
 
+variable "ssm_parameter_path" {
+  description = "SSM parameter path prefix the runner may read (empty disables SSM access)."
+  type        = string
+  default     = ""
+}
+
 variable "github_config_url" {
   description = "GitHub repository URL the runners register to."
   type        = string

@@ -2,6 +2,10 @@ locals {
   oidc_provider_host = replace(var.oidc_issuer, "https://", "")
 }
 
+data "aws_region" "current" {}
+
+data "aws_caller_identity" "current" {}
+
 data "aws_iam_policy_document" "runner_assume" {
   statement {
     effect  = "Allow"
@@ -60,6 +64,24 @@ data "aws_iam_policy_document" "runner" {
     effect    = "Allow"
     actions   = ["eks:DescribeCluster"]
     resources = [var.cluster_arn]
+  }
+
+  dynamic "statement" {
+    for_each = var.ssm_parameter_path == "" ? [] : [1]
+
+    content {
+      effect = "Allow"
+
+      actions = [
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:GetParametersByPath",
+      ]
+
+      resources = [
+        "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter${var.ssm_parameter_path}/*",
+      ]
+    }
   }
 }
 
