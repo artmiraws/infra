@@ -10,6 +10,11 @@ resource "aws_eks_cluster" "this" {
     public_access_cidrs     = length(var.cluster_public_access_cidrs) > 0 ? var.cluster_public_access_cidrs : null
   }
 
+  access_config {
+    authentication_mode                         = var.authentication_mode
+    bootstrap_cluster_creator_admin_permissions = true
+  }
+
   enabled_cluster_log_types = var.cluster_enabled_log_types
 
   tags = var.tags

@@ -9,6 +9,12 @@ variable "kubernetes_version" {
   default     = "1.36"
 }
 
+variable "authentication_mode" {
+  description = "EKS cluster authentication mode (API, API_AND_CONFIG_MAP, or CONFIG_MAP). API_AND_CONFIG_MAP is required for EKS access entries."
+  type        = string
+  default     = "API_AND_CONFIG_MAP"
+}
+
 variable "subnet_ids" {
   description = "Private subnet IDs for the control plane and nodes."
   type        = list(string)
