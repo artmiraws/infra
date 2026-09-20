@@ -107,6 +107,7 @@ module "arc" {
 
   github_config_url      = var.github_config_url
   github_app_secret_name = var.github_app_secret_name
+  runner_scale_set_name  = var.runner_scale_set_name
 
   ssm_parameter_path = "/${var.project}/${var.environment}"
 

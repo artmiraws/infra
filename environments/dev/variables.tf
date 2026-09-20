@@ -169,3 +169,21 @@ variable "github_app_secret_name" {
   type        = string
   default     = "todolist-dev/github-app"
 }
+
+variable "runner_scale_set_name" {
+  description = "ARC runner scale set name used as runs-on in the environment's workflows."
+  type        = string
+  default     = "arc-runner-set"
+}
+
+variable "app_namespace" {
+  description = "Namespace for the application (owned by Argo CD)."
+  type        = string
+  default     = "todolist"
+}
+
+variable "app_repo_url" {
+  description = "Application repository Argo CD reads the Helm chart from."
+  type        = string
+  default     = "https://github.com/artmiraws/todolist-app"
+}
