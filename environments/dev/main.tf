@@ -132,6 +132,20 @@ module "cluster_autoscaler" {
   depends_on = [module.eks]
 }
 
+module "infra_runner" {
+  source = "../../modules/infra-runner"
+
+  cluster_name      = module.eks.cluster_name
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_issuer       = module.eks.oidc_issuer
+
+  github_config_url = var.github_config_url
+
+  tags = local.common_tags
+
+  depends_on = [module.arc]
+}
+
 resource "aws_budgets_budget" "monthly" {
   name         = "${var.project}-${var.environment}-monthly"
   budget_type  = "COST"

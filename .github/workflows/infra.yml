@@ -1,0 +1,87 @@
+name: Infra dev
+
+on:
+  pull_request:
+    paths:
+      - "**.tf"
+      - "**.tfvars.example"
+      - "modules/**"
+      - "environments/**"
+      - ".github/workflows/infra.yml"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Terraform action
+        type: choice
+        options: [plan, apply]
+        default: plan
+
+permissions:
+  contents: read
+
+# One infra run at a time; the S3 state lock is the second line of defence.
+concurrency:
+  group: infra-dev
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  plan:
+    # Dedicated self-hosted runner with its own (broad) IRSA role, separate from the app runner.
+    runs-on: arc-infra-runner
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install OpenTofu
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o /tmp/tofu.zip \
+            "https://github.com/opentofu/opentofu/releases/download/v1.11.5/tofu_1.11.5_linux_amd64.zip"
+          unzip -q /tmp/tofu.zip -d "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Init
+        run: |
+          set -euo pipefail
+          BUCKET="todolist-tfstate-$(aws sts get-caller-identity --query Account --output text)"
+          tofu -chdir=environments/dev init -input=false -backend-config="bucket=$BUCKET"
+
+      - name: Plan
+        run: tofu -chdir=environments/dev plan -input=false -no-color -out=tfplan
+
+      - name: Upload plan
+        uses: actions/upload-artifact@v7
+        with:
+          name: tfplan
+          path: environments/dev/tfplan
+          if-no-files-found: error
+
+  apply:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply'
+    needs: plan
+    runs-on: arc-infra-runner
+    # Requires reviewers configured on the `infra` GitHub Environment.
+    environment: infra
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install OpenTofu
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o /tmp/tofu.zip \
+            "https://github.com/opentofu/opentofu/releases/download/v1.11.5/tofu_1.11.5_linux_amd64.zip"
+          unzip -q /tmp/tofu.zip -d "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Init
+        run: |
+          set -euo pipefail
+          BUCKET="todolist-tfstate-$(aws sts get-caller-identity --query Account --output text)"
+          tofu -chdir=environments/dev init -input=false -backend-config="bucket=$BUCKET"
+
+      - name: Apply
+        run: tofu -chdir=environments/dev apply -input=false -no-color -auto-approve
