@@ -62,6 +62,11 @@ resource "aws_eks_node_group" "this" {
     "k8s.io/cluster-autoscaler/${var.cluster_name}" = "owned"
   })
 
+  # Let the Cluster Autoscaler own the desired size; don't fight it on apply.
+  lifecycle {
+    ignore_changes = [scaling_config[0].desired_size]
+  }
+
   depends_on = [aws_iam_role_policy_attachment.node]
 }
 
