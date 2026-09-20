@@ -18,6 +18,11 @@ on:
       - ".github/workflows/platform.yml"
   workflow_dispatch:
     inputs:
+      environment:
+        description: Target environment root
+        type: choice
+        options: [dev, prod]
+        default: dev
       action:
         description: Terraform action
         type: choice
@@ -34,6 +39,8 @@ concurrency:
 
 env:
   TF_IN_AUTOMATION: "true"
+  # workflow_dispatch picks the root; push/PR plans dev.
+  TARGET_ENV: ${{ github.event.inputs.environment || 'dev' }}
 
 jobs:
   plan:
@@ -55,16 +62,16 @@ jobs:
         run: |
           set -euo pipefail
           BUCKET="todolist-tfstate-$(aws sts get-caller-identity --query Account --output text)"
-          tofu -chdir=environments/dev init -input=false -backend-config="bucket=$BUCKET"
+          tofu -chdir="environments/${TARGET_ENV}" init -input=false -backend-config="bucket=$BUCKET"
 
       - name: Plan
-        run: tofu -chdir=environments/dev plan -input=false -no-color -out=tfplan
+        run: tofu -chdir="environments/${TARGET_ENV}" plan -input=false -no-color -out=tfplan
 
       - name: Upload plan
         uses: actions/upload-artifact@v7
         with:
-          name: tfplan
-          path: environments/dev/tfplan
+          name: tfplan-${{ env.TARGET_ENV }}
+          path: environments/${{ env.TARGET_ENV }}/tfplan
           if-no-files-found: error
 
   apply:
@@ -89,7 +96,7 @@ jobs:
         run: |
           set -euo pipefail
           BUCKET="todolist-tfstate-$(aws sts get-caller-identity --query Account --output text)"
-          tofu -chdir=environments/dev init -input=false -backend-config="bucket=$BUCKET"
+          tofu -chdir="environments/${TARGET_ENV}" init -input=false -backend-config="bucket=$BUCKET"
 
       - name: Apply
-        run: tofu -chdir=environments/dev apply -input=false -no-color -auto-approve
+        run: tofu -chdir="environments/${TARGET_ENV}" apply -input=false -no-color -auto-approve

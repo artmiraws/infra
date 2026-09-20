@@ -1,149 +1,45 @@
 # Platform
 
-OpenTofu-managed AWS foundation for the TodoList DevOps challenge.
+OpenTofu-managed AWS foundation for the TodoList app: cost-conscious `dev` and `prod` EKS
+environments (VPC, EKS, Aurora, ECR, secrets, ALB/DNS, cluster add-ons, Argo CD, and CI runners).
+Prod mirrors dev's small footprint to demonstrate a promotion path, not scale.
 
-- **Scope:** one cost-conscious `dev` environment (EKS + Aurora PostgreSQL + supporting services).
-- **Status:** implemented and verified (VPC, EKS, Aurora, ECR, secrets, ALB/DNS, cluster add-ons,
-  self-hosted CI runners, budgets, and a platform pipeline). See [`docs/runbook.md`](docs/runbook.md).
+## Documentation
 
-## Ownership boundary
-
-Platform lifecycle is deliberately separate from application releases. An application deploy
-job must never run `tofu apply` or `tofu destroy`, and infrastructure must never manage the
-application's own Kubernetes objects.
-
-| Owner | Manages |
-|---|---|
-| `platform/` (this repo, OpenTofu + Helm) | VPC/subnets/NAT, EKS cluster and node group, IAM/OIDC/IRSA, cluster add-ons (VPC CNI, CoreDNS, kube-proxy, EBS CSI, AWS Load Balancer Controller, External Secrets Operator, metrics-server, Cluster Autoscaler, ARC runners), Aurora, Secrets Manager, ECR, Route53 records, ACM certificate, and the CI runners |
-| `todolist-app/` (app repo) | Application image, Helm chart, GitHub Actions workflows, and the app's Kubernetes objects (Deployment, Service, Ingress, HPA, PDB, ExternalSecret) |
-| GitHub Actions | Builds the image, publishes to ECR, and runs `helm upgrade` for the application release only; release-please manages versions |
-
-Cluster add-on bootstrap (including the Load Balancer Controller, External Secrets Operator, and the
-ARC runners) is owned by this repository. The application repository only owns the app's `Ingress`
-and `ExternalSecret`, which reference those controllers.
+Architecture, decisions (ADRs), the platform contract, the runbook, costs, and the hardening backlog
+live in the **platform handbook** (the `platform-docs` repository). Start there. This repository keeps
+only what is code-adjacent.
 
 ## Layout
 
 ```text
 platform/
 ├── bootstrap/                # S3 remote-state bucket (separate lifecycle)
-├── modules/
-│   ├── vpc/                  # VPC, subnets, NAT, route tables
-│   ├── eks/                  # EKS cluster, managed node group, IRSA, managed add-ons
-│   ├── rds/                  # Aurora PostgreSQL Serverless v2 cluster and writer
-│   ├── ecr/                  # application image repository
-│   ├── eso/                  # External Secrets Operator + ClusterSecretStore
-│   ├── alb/                  # AWS Load Balancer Controller
-│   ├── dns/                  # ACM certificate + ExternalDNS
-│   ├── arc/                  # ARC controller + app runner scale set
-│   ├── infra-runner/         # dedicated infra runner scale set
-│   ├── app-secrets/          # generated application credentials in Secrets Manager
-│   ├── metrics-server/       # HPA metrics
-│   └── cluster-autoscaler/   # node scaling
-├── environments/
-│   └── dev/                  # dev root: backend, providers, modules, SSM wiring, budget
-├── .github/workflows/        # platform pipeline (plan on PR, apply on approval)
-└── docs/
-    ├── runbook.md            # operations: provision, deploy, access, teardown, recovery
-    ├── decisions.md          # ADR-style decisions
-    ├── costs.md              # Cost drivers, estimates, and budget model
-    └── vendored-charts.md    # Helm chart sources, versions, and checksums
+├── modules/                  # vpc, eks, rds, ecr, eso, alb, dns, arc, infra-runner,
+│                             # app-secrets, metrics-server, cluster-autoscaler, argocd, argocd-app
+├── environments/             # dev/ and prod/ roots (separate state keys)
+├── .github/workflows/        # platform pipeline (plan on PR/push, apply on approval)
+└── README.md
 ```
 
-## Remote state
+## Commands
 
-The `bootstrap` root creates an S3 bucket with versioning, SSE-S3 encryption, a public access
-block, an HTTPS-only bucket policy, noncurrent-version expiration, and `prevent_destroy`. Its own
-state is self-hosted in that bucket (`bootstrap/terraform.tfstate`), so the first bootstrap is
-two-phase: apply once with local state, then `tofu init -migrate-state` with the bucket name (see
-`bootstrap/backend.hcl.example`).
+```bash
+tofu -chdir=environments/dev init -backend-config=backend.hcl
+tofu -chdir=environments/dev plan
+tofu fmt -check -recursive
+tofu -chdir=environments/dev validate
+```
 
-The dev environment uses the same bucket (`dev/terraform.tfstate`) through partial backend
-configuration and native file locking (`use_lockfile = true`, OpenTofu 1.10+), so no DynamoDB table
-is required. The bucket name is never committed; it is supplied through a gitignored `backend.hcl`
-locally and derived at runtime in CI. State is retained across teardown/recreation.
+- Apply/destroy require explicit authorization (protected remote state, cost).
+- The pipeline runs `tofu plan` on PR/push and `tofu apply` on approval
+  (`.github/workflows/platform.yml`).
 
-The pipeline and state model is recorded in [`docs/decisions.md`](docs/decisions.md), ADR-008.
+## Conventions
 
-## Networking
-
-- Public subnets (one per AZ) host the NAT gateway and the ALB.
-- Private subnets (one per AZ) host the EKS nodes; Aurora uses private connectivity.
-- Subnets carry the Kubernetes ELB discovery tags and the cluster `shared` tag used by the AWS Load
-  Balancer Controller.
-- A **single NAT gateway** is a deliberate dev compromise: it is a failure point and can incur
-  cross-AZ data-transfer charges when resources in another AZ route through it. Production would use
-  one NAT gateway per AZ.
-
-## Secrets
-
-Aurora master credentials are generated and stored by Secrets Manager, and the application's own
-credentials (`SESSION_KEY`, `ADMIN_PASSWORD`, `CLEANUP_TOKEN`) are generated by the `app-secrets`
-module. The External Secrets Operator (installed by this repository with an IRSA role scoped to those
-secrets) syncs them into a Kubernetes `Secret` through a `ClusterSecretStore` named
-`aws-secrets-manager`. The application repository owns the `ExternalSecret` that references the
-store. Rotating a secret requires an application restart, because the app reads credentials at
-startup. See ADR-010.
-
-## Database
-
-Aurora PostgreSQL Serverless v2 runs in the private subnets, reachable only from the VPC CIDR, with
-a single writer (min 0.5 / max 2 ACU) and 7-day backups. The master password is generated and stored
-by Secrets Manager, so no credential is set in configuration. Serverless v2 has **no auto-pause**:
-the minimum ACU and storage accrue while the cluster exists. `skip_final_snapshot` defaults to true
-because dev data is disposable; disable it to retain a snapshot before destroy. See ADR-005.
-
-## Cluster access
-
-The EKS API endpoint is private by default (the `cluster_public_access_cidrs` variable defaults to
-empty). The CI runners run inside the VPC and use the private endpoint. An operator who needs
-`kubectl` from outside the VPC sets their own address range (for example `["203.0.113.10/32"]`),
-which enables the public endpoint restricted to those CIDRs only; it is never left open to
-`0.0.0.0/0`. See ADR-006.
-
-The module installs the managed `vpc-cni`, `coredns`, `kube-proxy`, and `aws-ebs-csi-driver`
-add-ons, and creates an IAM OIDC provider so workloads use IRSA. Worker nodes run in private
-subnets; the dev environment uses two `t3.small` nodes (min 1 / max 3), because `t3.small` supports
-only 11 pods per node.
-
-## Cluster add-ons and CI runners
-
-- **metrics-server** provides HPA metrics; **Cluster Autoscaler** scales the node group (min 1 /
-  max 3) using IRSA and the node group's autoscaler tags.
-- **ARC** runs two self-hosted runner scale sets: `arc-runner-set` (app deploys; IRSA with ECR push,
-  `eks:DescribeCluster`, and read access to the SSM wiring) and `arc-infra-runner` (infra pipeline;
-  a separate, broad role). GitHub never connects into the cluster — runners poll GitHub outbound.
-
-## Ingress and DNS
-
-The application is exposed through an ALB created by the AWS Load Balancer Controller from the
-application's Helm-owned `Ingress` (ClusterIP backend). This repository installs the controller and
-ExternalDNS with IRSA roles; the application chart owns the `Ingress`.
-
-- ACM issues and DNS-validates a certificate for `dev.todolist.<base_domain>` through Route53.
-- ExternalDNS creates the Route53 record for the Ingress host from `spec.rules[].host`.
-- A literal `Service type: LoadBalancer` is intentionally not used; it would normally create an NLB
-  (L4) without host/path routing or ACM integration. See ADR-007.
-
-## App wiring (SSM)
-
-The dev root publishes non-secret wiring as SSM parameters under `/todolist/dev/` (cluster name, ECR
-URL, DB endpoint/port/name, secret ARNs, hostname, certificate ARN, store name, runner scale set).
-The app pipeline reads them, so the wiring has one source of truth and no values are duplicated in
-the app repo.
-
-## Pipelines
-
-- **Platform pipeline** (`.github/workflows/platform.yml`): `tofu plan` on PR, `tofu apply` on
-  `workflow_dispatch` gated by the `platform` GitHub Environment (required reviewers).
-- **App pipeline** (in the app repo): build, scan, ECR, Helm deploy, smoke test on push to `main`.
-
-## Cost controls
-
-- A monthly AWS Budget (`budget_limit_usd`, default US$50) alerts at 50/80/100% actual and 100%
-  forecasted spend. Budget alerts are notifications, not spending caps.
-- Dev is created for validation/demo windows and destroyed afterward. Scaling nodes to zero does not
-  stop EKS control-plane, storage, ALB, NAT, or Aurora charges.
-
-See [`docs/runbook.md`](docs/runbook.md), [`docs/decisions.md`](docs/decisions.md), and
-[`docs/costs.md`](docs/costs.md).
+- Remote state (S3 + native locking); never commit state, tfvars, or `backend.hcl`.
+- Helm charts are vendored under each module's `charts/` (no network at plan time).
+- No account IDs, ARNs, or secrets in committed files.
+- One owner per Kubernetes object; the application pipeline never runs `tofu`.
+- Helm releases use `atomic = true`; the state bucket is `prevent_destroy`.
+- The EKS API endpoint is private by default; operators opt in with explicit CIDRs.
