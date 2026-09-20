@@ -1,0 +1,35 @@
+project             = "todolist"
+environment         = "prod"
+aws_region          = "us-east-1"
+vpc_cidr            = "10.1.0.0/16"
+az_count            = 2
+cluster_name        = "todolist-prod"
+budget_limit_usd    = 50
+budget_alert_emails = ["you@example.com"]
+
+kubernetes_version          = "1.36"
+node_instance_types         = ["t3.small"]
+node_desired_size           = 2
+node_min_size               = 1
+node_max_size               = 3
+cluster_public_access_cidrs = []
+cluster_enabled_log_types   = ["api", "audit", "authenticator"]
+admin_principal_arns        = []
+
+db_engine_version          = "18.4"
+db_name                    = "todolist"
+db_master_username         = "todolist"
+db_min_capacity            = 0.5
+db_max_capacity            = 2
+db_backup_retention_period = 14
+db_skip_final_snapshot     = false
+db_deletion_protection     = true
+db_cloudwatch_logs_exports = []
+
+base_domain   = "example.com"
+app_subdomain = "prod.todolist"
+
+github_config_url      = "https://github.com/<owner>/<repo>"
+github_app_secret_name = "todolist-dev/github-app"
+
+runner_scale_set_name = "arc-runner-set-prod"
