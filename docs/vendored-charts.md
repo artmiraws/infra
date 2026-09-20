@@ -13,6 +13,7 @@ files under each module's `charts/` directory and referenced by local path, so `
 | gha-runner-scale-set | 0.14.2 | `oci://ghcr.io/actions/actions-runner-controller-charts` | `modules/arc/charts/gha-runner-scale-set-0.14.2.tgz` | `1a2d104e55486cad373a9c33f3cefd0b268cd567743e57ea5da8e1ddf75e0cc0` |
 | metrics-server | 3.14.0 | `https://kubernetes-sigs.github.io/metrics-server/` | `modules/metrics-server/charts/metrics-server-3.14.0.tgz` | `c2ca1185c01e6e7f53dd1b7d131f0c9b3fa50e003ed068b784563a1b5a3422a1` |
 | cluster-autoscaler | 9.59.0 | `https://kubernetes.github.io/autoscaler` | `modules/cluster-autoscaler/charts/cluster-autoscaler-9.59.0.tgz` | `90276dafe65cf5d4328ef8313baf6cfb9d130683e0c9f3c28a03b4d8a9ed8f6e` |
+| argo-cd | 10.9.2 | `https://argoproj.github.io/argo-helm` | `modules/argocd/charts/argo-cd-10.9.2.tgz` | `970ced346a0ddc3e475a7ff780e9b9c2fdebc07d9a367d2edb6ef4f49832c24a` |
 
 ## Updating
 

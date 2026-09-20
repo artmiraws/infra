@@ -246,6 +246,68 @@ expected.
 of secret values. Rotation requires a restart, which is acceptable for dev and documented as a
 limitation.
 
+## ADR-011 — Production environment and digest promotion
+
+**Context.** R1/R2/R4 are met by one `dev` environment. The remaining gap is a production path that
+promotes the artifact dev already validated, rather than rebuilding for production. The timebox and
+budget do not allow production-grade capacity or HA, so production here demonstrates **feasibility**,
+not scale.
+
+**Decision.**
+
+- Add a second environment root, `environments/prod`, that reuses the same modules with its own
+  remote state (`prod/terraform.tfstate`), VPC (`10.1.0.0/16`), EKS cluster (`todolist-prod`),
+  Aurora cluster, Secrets Manager secrets, IAM roles, SSM parameters (`/todolist/prod/*`), DNS name,
+  and ARC runner. The ECR repository and the GitHub App are **shared** (the artifact store and the
+  repo-scoped app are environment-independent).
+- Production uses the **same small footprint as dev** (`t3.small`, two nodes) and turns on the
+  production safeguards that cost nothing at this size: Aurora `deletion_protection = true`,
+  `skip_final_snapshot = false`, 14-day backups, and EKS control-plane logging
+  (`api`, `audit`, `authenticator`). True multi-AZ redundancy (reader, multiple NAT gateways) stays
+  a documented limitation, consistent with the dev posture.
+- **Promotion is by digest, never a rebuild.** The dev pipeline builds, scans, pushes, and records
+  the resulting digest in Git (`charts/todolist/gitops/dev.yaml`, see ADR-012). A production deploy
+  reads that digest and deploys the same image to prod.
+- **Trigger:** a published GitHub Release (or an approval-gated `workflow_dispatch`), never a push to
+  `main`. The `prod` GitHub Environment requires a reviewer, so promotion is an explicit approval.
+- **Rollback** is a redeploy of the previous digest (the value is in Git history), tested as part of
+  the environment verification. Database migration recovery is handled separately from image
+  rollback (a schema change is not undone by rolling the image back).
+
+**Consequences.** A second cluster roughly doubles the running cost while both exist; both are
+ephemeral and destroyed after the demo. The promotion path is audit-friendly (digest + approval) and
+does not rebuild for production.
+
+## ADR-012 — GitOps with ArgoCD and explicit ownership transfer
+
+**Context.** Today the application pipeline runs `helm upgrade` directly (CI owns the app release),
+while OpenTofu owns the cluster add-ons (ADR-009). Introducing ArgoCD without a clear transfer would
+leave two owners for the same objects.
+
+**Decision.**
+
+- Install **ArgoCD** in each environment with a new OpenTofu module (vendored chart). ArgoCD is
+  cluster add-on infrastructure and is owned by this repository, like the other controllers.
+- This repository creates one ArgoCD `Application` per environment. It points at the **application
+  repository** chart (`charts/todolist` on `main`) and reads two sources of values:
+  - a **digest file committed in the app repository** (`charts/todolist/gitops/<env>.yaml`), which CI
+    updates; and
+  - **non-secret wiring injected inline by OpenTofu** (`valuesObject`: database host, secret ARNs,
+    hostname, certificate ARN), so account-specific values never enter Git.
+- **Ownership transfer is explicit.** CI stops running `helm upgrade`; ArgoCD becomes the only owner
+  of the application release. The application pipeline now builds, scans, pushes, and commits the
+  image digest to the environment's digest file. Terraform continues to own the cluster add-ons; it
+  does not create the application release.
+- Dev syncs automatically from `main`. Prod syncs automatically too, but its digest file only changes
+  through the approval-gated promotion flow (ADR-011), so "auto-sync" cannot deploy unreviewed code.
+- ArgoCD is reachable in-cluster (ClusterIP) and is operated through `kubectl port-forward` for the
+  demo. The application repository must be readable by ArgoCD; if it is private, repository
+  credentials are added out of band and never committed.
+
+**Consequences.** One owner per object, a reconcilable desired state in Git, and rollback by
+reverting a commit or syncing a previous revision. Adds ArgoCD to the cluster and a Git write step to
+CI. Argo Rollouts/canary stays a separate optional increment, not part of this transfer.
+
 ## Assumptions
 
 - The AWS account, region, and required service quotas are available.

@@ -3,8 +3,9 @@
 Guidance for AI coding agents working in this repository. Keep it short and accurate.
 
 ## What this is
-OpenTofu-managed AWS foundation for the TodoList app: one cost-conscious `dev` EKS environment
-(VPC, EKS, Aurora, ECR, secrets, ALB/DNS, cluster add-ons, and CI runners).
+OpenTofu-managed AWS foundation for the TodoList app: cost-conscious `dev` and `prod` EKS
+environments (VPC, EKS, Aurora, ECR, secrets, ALB/DNS, cluster add-ons, Argo CD, and CI runners).
+Prod mirrors dev's small footprint to demonstrate a promotion path, not scale (ADR-011).
 
 ## Commands
 - Init + plan:
@@ -15,8 +16,8 @@ OpenTofu-managed AWS foundation for the TodoList app: one cost-conscious `dev` E
 
 ## Layout
 - `bootstrap/` — S3 state bucket (separate lifecycle).
-- `modules/` — vpc, eks, rds, ecr, eso, alb, dns, arc, app-secrets, metrics-server, cluster-autoscaler, infra-runner.
-- `environments/dev/` — the dev root.
+- `modules/` — vpc, eks, rds, ecr, eso, alb, dns, arc, app-secrets, metrics-server, cluster-autoscaler, infra-runner, argocd, argocd-app.
+- `environments/dev/` and `environments/prod/` — the two roots (separate state keys).
 - `docs/` — decisions, costs, vendored charts; start at `docs/README.md`.
 
 ## Conventions

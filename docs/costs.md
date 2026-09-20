@@ -70,6 +70,13 @@ An always-on dev stack is about **4.5× the US$50 budget**, and the EKS control 
 Node size is a minor cost factor: `t3.medium` instead of `t3.small` adds only ~US$19/month
 always-on, or ~US$0.53 for a 20-hour window.
 
+## Prod (second environment)
+
+Prod mirrors dev's footprint on purpose (ADR-011), so while both exist the variable cost roughly
+**doubles** — about **US$0.33 per active hour each** (≈US$14 for a 20-hour window with both running).
+Prod adds EKS control-plane logging (CloudWatch ingestion) and 14-day backups. Like dev, prod is
+destroyed after the demo window; keeping both always-on would be roughly **US$446/month**.
+
 ## Budget
 
 - A monthly cost budget of **US$50** is planned, with alerts at **50% (US$25)**, **80% (US$40)**,
