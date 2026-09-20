@@ -9,7 +9,7 @@ budget_alert_emails = ["you@example.com"]
 
 kubernetes_version          = "1.36"
 node_instance_types         = ["t3.small"]
-node_desired_size           = 1
+node_desired_size           = 2
 node_min_size               = 1
 node_max_size               = 2
 cluster_public_access_cidrs = []
@@ -25,3 +25,9 @@ db_backup_retention_period = 7
 db_skip_final_snapshot     = true
 db_deletion_protection     = false
 db_cloudwatch_logs_exports = []
+
+base_domain   = "example.com"
+app_subdomain = "dev.todolist"
+
+github_config_url      = "https://github.com/<owner>/<repo>"
+github_app_secret_name = "todolist-dev/github-app"

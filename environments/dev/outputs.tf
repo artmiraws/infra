@@ -99,3 +99,38 @@ output "external_secrets_store_name" {
   description = "Name of the ClusterSecretStore used by application ExternalSecrets."
   value       = module.eso.secret_store_name
 }
+
+output "app_secret_arn" {
+  description = "ARN of the Secrets Manager secret holding application credentials."
+  value       = module.app_secrets.secret_arn
+}
+
+output "app_hostname" {
+  description = "Documented hostname of the dev application."
+  value       = module.dns.hostname
+}
+
+output "ingress_certificate_arn" {
+  description = "ACM certificate ARN for the application Ingress."
+  value       = module.dns.certificate_arn
+}
+
+output "alb_controller_role_arn" {
+  description = "ARN of the AWS Load Balancer Controller IRSA role."
+  value       = module.alb.role_arn
+}
+
+output "external_dns_role_arn" {
+  description = "ARN of the ExternalDNS IRSA role."
+  value       = module.dns.external_dns_role_arn
+}
+
+output "ecr_repository_url" {
+  description = "ECR repository URL for the application image."
+  value       = module.ecr.repository_url
+}
+
+output "arc_runner_scale_set_name" {
+  description = "Runner scale set name used as runs-on in workflows."
+  value       = module.arc.runner_scale_set_name
+}

@@ -62,12 +62,11 @@ resource "aws_iam_role_policy_attachment" "secrets" {
 
 resource "helm_release" "this" {
   name             = "external-secrets"
-  repository       = "https://charts.external-secrets.io"
-  chart            = "external-secrets"
-  version          = var.chart_version
+  chart            = "${path.module}/charts/external-secrets-${var.chart_version}.tgz"
   namespace        = var.namespace
   create_namespace = true
   wait             = true
+  atomic           = true
 
   values = [
     yamlencode({
@@ -79,34 +78,38 @@ resource "helm_release" "this" {
           "eks.amazonaws.com/role-arn" = aws_iam_role.this.arn
         }
       }
-
-      extraObjects = [
-        {
-          apiVersion = "external-secrets.io/v1"
-          kind       = "ClusterSecretStore"
-          metadata = {
-            name = var.secret_store_name
-          }
-          spec = {
-            provider = {
-              aws = {
-                service = "SecretsManager"
-                region  = data.aws_region.current.region
-                auth = {
-                  jwt = {
-                    serviceAccountRef = {
-                      name      = var.service_account_name
-                      namespace = var.namespace
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      ]
     })
   ]
 
   depends_on = [aws_iam_role_policy_attachment.secrets]
+}
+
+# The operator's CRDs are installed by the Helm release above, so the store is applied afterwards
+# (Helm cannot map a custom resource that is installed in the same release as its CRD).
+resource "kubectl_manifest" "secret_store" {
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1"
+    kind       = "ClusterSecretStore"
+    metadata = {
+      name = var.secret_store_name
+    }
+    spec = {
+      provider = {
+        aws = {
+          service = "SecretsManager"
+          region  = data.aws_region.current.region
+          auth = {
+            jwt = {
+              serviceAccountRef = {
+                name      = var.service_account_name
+                namespace = var.namespace
+              }
+            }
+          }
+        }
+      }
+    }
+  })
+
+  depends_on = [helm_release.this]
 }

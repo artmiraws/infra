@@ -1,3 +1,5 @@
+data "aws_caller_identity" "current" {}
+
 locals {
   common_tags = {
     Project     = var.project
@@ -6,6 +8,8 @@ locals {
   }
 
   budget_thresholds = [50, 80, 100]
+
+  github_app_secret_arn = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${var.github_app_secret_name}-??????"
 }
 
 module "vpc" {
@@ -58,17 +62,55 @@ module "rds" {
   tags = local.common_tags
 }
 
+module "app_secrets" {
+  source = "../../modules/app-secrets"
+
+  name = "${var.project}-${var.environment}/app"
+
+  tags = local.common_tags
+}
+
 module "eso" {
   source = "../../modules/eso"
 
   cluster_name      = module.eks.cluster_name
   oidc_provider_arn = module.eks.oidc_provider_arn
   oidc_issuer       = module.eks.oidc_issuer
-  secret_arns       = [module.rds.master_user_secret_arn]
+  secret_arns = [
+    module.rds.master_user_secret_arn,
+    module.app_secrets.secret_arn,
+    local.github_app_secret_arn,
+  ]
 
   tags = local.common_tags
 
   depends_on = [module.eks, module.rds]
+}
+
+module "ecr" {
+  source = "../../modules/ecr"
+
+  name                 = var.project
+  image_tag_mutability = "MUTABLE"
+
+  tags = local.common_tags
+}
+
+module "arc" {
+  source = "../../modules/arc"
+
+  cluster_name       = module.eks.cluster_name
+  cluster_arn        = module.eks.cluster_arn
+  oidc_provider_arn  = module.eks.oidc_provider_arn
+  oidc_issuer        = module.eks.oidc_issuer
+  ecr_repository_arn = module.ecr.repository_arn
+
+  github_config_url      = var.github_config_url
+  github_app_secret_name = var.github_app_secret_name
+
+  tags = local.common_tags
+
+  depends_on = [module.eks, module.eso]
 }
 
 resource "aws_budgets_budget" "monthly" {

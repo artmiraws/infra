@@ -58,9 +58,9 @@ variable "node_instance_types" {
 }
 
 variable "node_desired_size" {
-  description = "Desired number of dev worker nodes."
+  description = "Desired number of dev worker nodes (2 for pod-density headroom on t3.small)."
   type        = number
-  default     = 1
+  default     = 2
 }
 
 variable "node_min_size" {
@@ -145,4 +145,27 @@ variable "db_cloudwatch_logs_exports" {
   description = "Aurora log types exported to CloudWatch Logs."
   type        = list(string)
   default     = []
+}
+
+variable "base_domain" {
+  description = "Base domain managed in Route53 (the hosted zone name)."
+  type        = string
+}
+
+variable "app_subdomain" {
+  description = "Subdomain prefix for the application hostname."
+  type        = string
+  default     = "dev.todolist"
+}
+
+variable "github_config_url" {
+  description = "GitHub repository URL the self-hosted runners register to."
+  type        = string
+  default     = "https://github.com/artmiraws/todolist-app"
+}
+
+variable "github_app_secret_name" {
+  description = "Secrets Manager secret name holding the GitHub App credentials."
+  type        = string
+  default     = "todolist-dev/github-app"
 }
