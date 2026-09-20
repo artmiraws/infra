@@ -3,6 +3,16 @@ locals {
     { syncOptions = ["CreateNamespace=true"] },
     var.automated_sync ? { automated = { prune = true, selfHeal = true } } : {},
   )
+
+  # The chart derives object names from the Helm release name, so it must match the release the
+  # resources were first created with; otherwise Argo CD would create a second set of objects.
+  helm = merge(
+    {
+      valueFiles   = var.value_files
+      valuesObject = var.values_object
+    },
+    var.release_name != "" ? { releaseName = var.release_name } : {},
+  )
 }
 
 # The Application CRD is installed by the Argo CD Helm release, so this is applied afterwards (Helm
@@ -23,10 +33,7 @@ resource "kubectl_manifest" "this" {
         repoURL        = var.repo_url
         targetRevision = var.target_revision
         path           = var.chart_path
-        helm = {
-          valueFiles   = var.value_files
-          valuesObject = var.values_object
-        }
+        helm           = local.helm
       }
 
       destination = {

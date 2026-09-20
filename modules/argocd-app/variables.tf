@@ -36,6 +36,12 @@ variable "chart_path" {
   type        = string
 }
 
+variable "release_name" {
+  description = "Helm release name Argo CD renders with (must match the chart's existing object names)."
+  type        = string
+  default     = ""
+}
+
 variable "value_files" {
   description = "Helm value files committed in the repository (relative to chart_path)."
   type        = list(string)

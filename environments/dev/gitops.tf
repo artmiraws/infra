@@ -40,11 +40,14 @@ locals {
 module "argocd_app" {
   source = "../../modules/argocd-app"
 
-  name            = "todolist-${var.environment}"
+  # The Application and Helm release names match the resources Helm already created, so Argo CD
+  # adopts them instead of creating a second set (the chart names objects from the release name).
+  name            = "todolist"
   namespace       = var.app_namespace
   repo_url        = var.app_repo_url
   target_revision = "main"
   chart_path      = "charts/todolist"
+  release_name    = "todolist"
   value_files     = ["gitops/${var.environment}.yaml"]
   values_object   = local.app_values
 
