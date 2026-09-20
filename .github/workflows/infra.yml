@@ -1,6 +1,14 @@
 name: Infra dev
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "**.tf"
+      - "**.tfvars.example"
+      - "modules/**"
+      - "environments/**"
+      - ".github/workflows/infra.yml"
   pull_request:
     paths:
       - "**.tf"
