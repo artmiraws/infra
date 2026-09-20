@@ -1,3 +1,18 @@
+locals {
+  # TLS terminates at the ALB, so Argo CD's server runs in insecure (HTTP) mode when published.
+  server = merge(
+    { replicas = 1, insecure = var.server_insecure },
+    var.ingress_enabled ? {
+      ingress = {
+        enabled          = true
+        ingressClassName = var.ingress_class_name
+        hostname         = var.ingress_host
+        annotations      = var.ingress_annotations
+      }
+    } : {},
+  )
+}
+
 resource "helm_release" "this" {
   name             = "argocd"
   chart            = "${path.module}/charts/argo-cd-${var.chart_version}.tgz"
@@ -14,7 +29,7 @@ resource "helm_release" "this" {
       dex           = { enabled = false }
       notifications = { enabled = false }
 
-      server     = { replicas = 1 }
+      server     = local.server
       controller = { replicas = 1 }
       repoServer = { replicas = 1 }
       redis      = { enabled = true }

@@ -1,3 +1,4 @@
+# Argo CD is reached with `kubectl port-forward` (see in-progress.md), not exposed publicly.
 module "argocd" {
   source = "../../modules/argocd"
 

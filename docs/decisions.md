@@ -419,6 +419,36 @@ ADR-013.
 platform must operate one small plugin and grant it SSM read access. The contract becomes the real
 interface, so it must be versioned.
 
+## ADR-016 — Single Argo CD: exposure, cross-cluster management, and ApplicationSets
+
+**Context.** The first increment runs one Argo CD per cluster. ADR-013 chose a single Argo CD (in
+prod, no hub) and ADR-014 chose trunk-based delivery with an `ApplicationSet` per application. This
+records the operational shape and the security posture.
+
+**Decision.**
+
+- **Placement.** One Argo CD, in the `prod` cluster, managing every environment.
+- **Reachability.** EKS endpoints are private, so the platform peers the environment VPCs (prod to
+  dev) and registers each environment as an Argo CD cluster. A hub cluster or Transit Gateway is the
+  scale-out path once there are more than a few clusters.
+- **Exposure.** Argo CD is published at `argocd.<base_domain>` through an internet-facing ALB with an
+  ACM certificate. Argo CD runs with `server.insecure=true` so TLS terminates once, at the ALB.
+- **Hardening.** The UI is a cluster-admin surface: an ALB inbound-CIDR allowlist (never
+  `0.0.0.0/0`), SSO (OIDC) with RBAC instead of the shared admin password, and the admin secret kept
+  only as break-glass.
+- **ApplicationSet.** Each application ships an `ApplicationSet` in its own repository. A `list`
+  generator (`env: dev | prod`) produces one Application per environment; dev renders the chart from
+  source on `main` and prod pins the released OCI chart version (ADR-014).
+- **Contract.** The `ApplicationSet` does not read SSM itself; a config-management plugin resolves the
+  platform contract into Helm values at render time (ADR-015).
+
+**Consequences.** One UI and one control plane for every environment. The platform must solve
+cross-VPC reachability and protect a single, high-value endpoint. Cluster registration and the
+render-time plugin are the main new moving parts.
+
+**Rejected.** One Argo CD per cluster (duplicated control planes, no single view); exposing Argo CD
+without an allowlist or SSO; letting the `ApplicationSet` read Terraform/SSM directly.
+
 ## Assumptions
 
 - The AWS account, region, and required service quotas are available.
