@@ -159,9 +159,15 @@ variable "app_subdomain" {
 }
 
 variable "github_config_url" {
-  description = "GitHub repository URL the self-hosted runners register to."
+  description = "GitHub repository URL the application's self-hosted runners register to."
   type        = string
   default     = "https://github.com/artmiraws/todolist-app"
+}
+
+variable "infra_repo_url" {
+  description = "GitHub repository URL the platform pipeline runner registers to."
+  type        = string
+  default     = "https://github.com/artmiraws/platform"
 }
 
 variable "github_app_secret_name" {

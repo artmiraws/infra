@@ -143,7 +143,9 @@ module "infra_runner" {
   oidc_provider_arn = module.eks.oidc_provider_arn
   oidc_issuer       = module.eks.oidc_issuer
 
-  github_config_url = var.github_config_url
+  # The platform pipeline runs in the platform repository, so its runner must register there
+  # (not to the application repository the app runner uses).
+  github_config_url = var.infra_repo_url
 
   tags = local.common_tags
 
