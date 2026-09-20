@@ -348,9 +348,8 @@ depend on it.
 **Open questions (resolve in GITOPS-HUB / PLATFORM-DOCS).**
 
 - Cross-environment connectivity for Argo CD: VPC peering now, hub/Transit Gateway later.
-- How Argo CD consumes the contract: the platform writes wiring into a ConfigMap that Argo CD reads,
-  a render plugin (for example argocd-vault-plugin) reads SSM at render time, or CI writes
-  per-environment values.
+- How Argo CD consumes the contract — **resolved by ADR-015**: a render-time config-management plugin
+  reads the contract; Terraform injection is only the interim for the current single application.
 - Which resources the platform provides as a service (database, secrets) versus which the
   application provisions; today the platform provisions the database for the single app.
 - Static-site tooling for `platform-docs` (for example MkDocs Material, Docusaurus, or plain
@@ -395,6 +394,30 @@ config.
    version and the dev-validated digest.
 4. Review and merge the PR → Argo CD reconciles prod (OCI chart `X.Y.Z` + promoted digest).
 5. Rollback: a PR (or a revert) restoring the previous chart version and digest.
+
+## ADR-015 — Contract delivery: a render-time plugin, not Terraform injection
+
+**Context.** The platform publishes a per-environment contract (SSM). Applications need it at render
+time (image repository, database host, secret ARNs, ingress host/annotations). The first increment
+injected those values from Terraform straight into the Argo CD `Application` (`valuesObject`). That
+works for one application but couples the platform to each application's chart schema — every new
+application would be a Terraform change, which contradicts the platform/application separation of
+ADR-013.
+
+**Decision.**
+
+- Applications **resolve the contract at render time** with a **config-management plugin** (a CMP in
+  Argo CD's repo-server that reads the contract from SSM and feeds it to Helm). The application owns
+  its `ApplicationSet`; the platform stays application-agnostic.
+- The plugin runs with **IRSA** scoped to read only the contract parameters.
+- **Interim:** the current single application keeps Terraform-injected Application values until the
+  plugin lands. This is explicitly a stopgap, not the target.
+- **Rejected:** committing non-secret wiring to Git (keeps account data out of Git) and a runtime
+  ConfigMap (cannot feed render-time values such as ingress annotations or the image repository).
+
+**Consequences.** New applications onboard with no platform change — they consume the contract. The
+platform must operate one small plugin and grant it SSM read access. The contract becomes the real
+interface, so it must be versioned.
 
 ## Assumptions
 
