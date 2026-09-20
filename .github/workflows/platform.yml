@@ -66,6 +66,14 @@ jobs:
       - name: Show identity (IRSA)
         run: aws sts get-caller-identity
 
+      - name: Load platform config
+        run: |
+          set -euo pipefail
+          {
+            echo "TF_VAR_base_domain=$(aws ssm get-parameter --name /platform/base_domain --query Parameter.Value --output text)"
+            echo "TF_VAR_budget_alert_emails=$(aws ssm get-parameter --name /platform/budget_alert_emails --query Parameter.Value --output text)"
+          } >> "$GITHUB_ENV"
+
       - name: Init
         run: |
           set -euo pipefail
@@ -104,6 +112,14 @@ jobs:
             /tmp/aws/install -i "$HOME/.local/aws-cli" -b "$HOME/.local/bin"
           fi
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Load platform config
+        run: |
+          set -euo pipefail
+          {
+            echo "TF_VAR_base_domain=$(aws ssm get-parameter --name /platform/base_domain --query Parameter.Value --output text)"
+            echo "TF_VAR_budget_alert_emails=$(aws ssm get-parameter --name /platform/budget_alert_emails --query Parameter.Value --output text)"
+          } >> "$GITHUB_ENV"
 
       - name: Init
         run: |

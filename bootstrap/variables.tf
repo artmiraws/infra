@@ -21,3 +21,13 @@ variable "noncurrent_version_expiration_days" {
   type        = number
   default     = 90
 }
+
+variable "base_domain" {
+  description = "Base domain managed in Route53 (platform-wide config published to SSM)."
+  type        = string
+}
+
+variable "budget_alert_emails" {
+  description = "Email addresses for AWS Budget alerts (platform-wide config published to SSM)."
+  type        = list(string)
+}

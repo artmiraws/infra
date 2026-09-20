@@ -102,3 +102,17 @@ resource "aws_s3_bucket_policy" "state" {
 
   depends_on = [aws_s3_bucket_public_access_block.state]
 }
+
+# Platform-wide, non-secret configuration. Kept here (the one root that is applied once) so the
+# platform pipeline can read the base domain without it being committed to Git.
+resource "aws_ssm_parameter" "base_domain" {
+  name  = "/platform/base_domain"
+  type  = "String"
+  value = var.base_domain
+}
+
+resource "aws_ssm_parameter" "budget_alert_emails" {
+  name  = "/platform/budget_alert_emails"
+  type  = "String"
+  value = jsonencode(var.budget_alert_emails)
+}
