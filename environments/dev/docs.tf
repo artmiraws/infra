@@ -98,8 +98,25 @@ module "arc_docs" {
 # the built site, so its runner needs those services. See the platform-docs repository.
 data "aws_iam_policy_document" "docs_deploy" {
   statement {
-    sid       = "SiteBucket"
-    actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
+    sid = "SiteBucket"
+    actions = [
+      "s3:ListBucket",
+      "s3:GetBucketLocation",
+      "s3:CreateBucket",
+      "s3:DeleteBucket",
+      "s3:GetBucketPolicy",
+      "s3:PutBucketPolicy",
+      "s3:DeleteBucketPolicy",
+      "s3:GetBucketVersioning",
+      "s3:PutBucketVersioning",
+      "s3:GetBucketPublicAccessBlock",
+      "s3:PutBucketPublicAccessBlock",
+      "s3:GetEncryptionConfiguration",
+      "s3:PutEncryptionConfiguration",
+      "s3:GetBucketTagging",
+      "s3:PutBucketTagging",
+      "s3:GetBucketAcl",
+    ]
     resources = ["arn:aws:s3:::platform-docs-*"]
   }
 
