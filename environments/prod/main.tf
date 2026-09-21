@@ -40,36 +40,6 @@ module "eks" {
   tags = local.common_tags
 }
 
-module "rds" {
-  source = "../../modules/rds"
-
-  name       = "${var.project}-${var.environment}"
-  vpc_id     = module.vpc.vpc_id
-  subnet_ids = module.vpc.private_subnet_ids
-
-  allowed_cidr_blocks = [module.vpc.vpc_cidr]
-
-  engine_version                  = var.db_engine_version
-  database_name                   = var.db_name
-  master_username                 = var.db_master_username
-  min_capacity                    = var.db_min_capacity
-  max_capacity                    = var.db_max_capacity
-  backup_retention_period         = var.db_backup_retention_period
-  skip_final_snapshot             = var.db_skip_final_snapshot
-  deletion_protection             = var.db_deletion_protection
-  enabled_cloudwatch_logs_exports = var.db_cloudwatch_logs_exports
-
-  tags = local.common_tags
-}
-
-module "app_secrets" {
-  source = "../../modules/app-secrets"
-
-  name = "${var.project}-${var.environment}/app"
-
-  tags = local.common_tags
-}
-
 module "eso" {
   source = "../../modules/eso"
 
@@ -77,14 +47,14 @@ module "eso" {
   oidc_provider_arn = module.eks.oidc_provider_arn
   oidc_issuer       = module.eks.oidc_issuer
   secret_arns = [
-    module.rds.master_user_secret_arn,
-    module.app_secrets.secret_arn,
+    module.app_todolist.db_master_user_secret_arn,
+    module.app_todolist.app_secret_arn,
     local.github_app_secret_arn,
   ]
 
   tags = local.common_tags
 
-  depends_on = [module.eks, module.rds]
+  depends_on = [module.eks]
 }
 
 # The ECR repository is shared with dev (same image, same region), so prod references it instead of

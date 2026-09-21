@@ -23,11 +23,6 @@ variable "base_domain" {
   type        = string
 }
 
-variable "hostname" {
-  description = "Hostname for the application certificate and DNS record."
-  type        = string
-}
-
 variable "region" {
   description = "AWS region of the cluster."
   type        = string

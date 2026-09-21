@@ -66,27 +66,27 @@ output "node_role_arn" {
 
 output "db_cluster_endpoint" {
   description = "Writer endpoint of the dev Aurora cluster."
-  value       = module.rds.cluster_endpoint
+  value       = module.app_todolist.db_cluster_endpoint
 }
 
 output "db_cluster_reader_endpoint" {
   description = "Reader endpoint of the dev Aurora cluster."
-  value       = module.rds.cluster_reader_endpoint
+  value       = module.app_todolist.db_cluster_reader_endpoint
 }
 
 output "db_cluster_port" {
   description = "Port of the dev Aurora cluster."
-  value       = module.rds.cluster_port
+  value       = module.app_todolist.db_cluster_port
 }
 
 output "db_name" {
   description = "Initial database name of the dev Aurora cluster."
-  value       = module.rds.database_name
+  value       = module.app_todolist.db_name
 }
 
 output "db_master_user_secret_arn" {
   description = "ARN of the Secrets Manager secret holding the dev database credentials."
-  value       = module.rds.master_user_secret_arn
+  value       = module.app_todolist.db_master_user_secret_arn
   sensitive   = true
 }
 
@@ -102,17 +102,17 @@ output "external_secrets_store_name" {
 
 output "app_secret_arn" {
   description = "ARN of the Secrets Manager secret holding application credentials."
-  value       = module.app_secrets.secret_arn
+  value       = module.app_todolist.app_secret_arn
 }
 
 output "app_hostname" {
   description = "Documented hostname of the dev application."
-  value       = module.dns.hostname
+  value       = module.app_todolist.hostname
 }
 
 output "ingress_certificate_arn" {
   description = "ACM certificate ARN for the application Ingress."
-  value       = module.dns.certificate_arn
+  value       = module.app_todolist.certificate_arn
 }
 
 output "alb_controller_role_arn" {

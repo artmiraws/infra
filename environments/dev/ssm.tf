@@ -2,13 +2,13 @@ locals {
   ssm_parameters = {
     cluster_name                = module.eks.cluster_name
     ecr_repository_url          = module.ecr.repository_url
-    db_host                     = module.rds.cluster_endpoint
-    db_port                     = tostring(module.rds.cluster_port)
-    db_name                     = module.rds.database_name
-    db_secret_arn               = module.rds.master_user_secret_arn
-    app_secret_arn              = module.app_secrets.secret_arn
-    app_hostname                = module.dns.hostname
-    ingress_certificate_arn     = module.dns.certificate_arn
+    db_host                     = module.app_todolist.db_cluster_endpoint
+    db_port                     = tostring(module.app_todolist.db_cluster_port)
+    db_name                     = module.app_todolist.db_name
+    db_secret_arn               = module.app_todolist.db_master_user_secret_arn
+    app_secret_arn              = module.app_todolist.app_secret_arn
+    app_hostname                = module.app_todolist.hostname
+    ingress_certificate_arn     = module.app_todolist.certificate_arn
     external_secrets_store_name = module.eso.secret_store_name
     runner_scale_set_name       = module.arc.runner_scale_set_name
   }

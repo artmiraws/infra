@@ -25,7 +25,6 @@ module "dns" {
   oidc_issuer       = module.eks.oidc_issuer
   zone_id           = data.aws_route53_zone.this.zone_id
   base_domain       = var.base_domain
-  hostname          = "${var.app_subdomain}.${var.base_domain}"
   region            = var.aws_region
 
   tags = local.common_tags

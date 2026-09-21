@@ -4,52 +4,47 @@ module "argocd" {
   depends_on = [module.eks]
 }
 
-# Non-secret wiring injected into the application chart. Keeping it here (instead of a committed
-# values file) avoids account IDs, ARNs, and hostnames in Git; the only committed value is the image
-# digest. See ADR-012.
-locals {
-  app_values = {
-    image = {
-      repository = module.ecr.repository_url
-    }
+# The TodoList application: its database, application secret, hostname certificate, and Argo CD
+# Application. The platform supplies the VPC, cluster, zone, registry, and store; this module owns
+# the app-specific resources. See ADR-013 and modules/app-todolist.
+module "app_todolist" {
+  source = "../../modules/app-todolist"
 
-    config = {
-      dbHost = module.rds.cluster_endpoint
-      dbName = module.rds.database_name
-    }
+  name       = "${var.project}-${var.environment}"
+  vpc_id     = module.vpc.vpc_id
+  subnet_ids = module.vpc.private_subnet_ids
 
-    externalSecret = {
-      dbSecretArn  = module.rds.master_user_secret_arn
-      appSecretArn = module.app_secrets.secret_arn
-    }
+  allowed_cidr_blocks = [module.vpc.vpc_cidr]
 
-    ingress = {
-      host = module.dns.hostname
-      annotations = {
-        "alb.ingress.kubernetes.io/scheme"          = "internet-facing"
-        "alb.ingress.kubernetes.io/target-type"     = "ip"
-        "alb.ingress.kubernetes.io/listen-ports"    = "[{\"HTTPS\":443}]"
-        "alb.ingress.kubernetes.io/ssl-redirect"    = "443"
-        "alb.ingress.kubernetes.io/certificate-arn" = module.dns.certificate_arn
-      }
-    }
-  }
-}
+  db_engine_version          = var.db_engine_version
+  database_name              = var.db_name
+  master_username            = var.db_master_username
+  db_min_capacity            = var.db_min_capacity
+  db_max_capacity            = var.db_max_capacity
+  db_backup_retention_period = var.db_backup_retention_period
+  db_skip_final_snapshot     = var.db_skip_final_snapshot
+  db_deletion_protection     = var.db_deletion_protection
+  db_cloudwatch_logs_exports = var.db_cloudwatch_logs_exports
 
-# Argo CD owns the application release (ADR-012). The pipeline only updates the digest file in Git.
-module "argocd_app" {
-  source = "../../modules/argocd-app"
+  app_secret_name = "${var.project}-${var.environment}/app"
 
-  # The Application and Helm release names match the resources Helm already created, so Argo CD
-  # adopts them instead of creating a second set (the chart names objects from the release name).
-  name            = "todolist"
+  hostname = "${var.app_subdomain}.${var.base_domain}"
+  zone_id  = data.aws_route53_zone.this.zone_id
+
+  ecr_repository_url = module.ecr.repository_url
+
+  app_name        = "todolist"
   namespace       = var.app_namespace
   repo_url        = var.app_repo_url
   target_revision = "main"
   chart_path      = "charts/todolist"
   release_name    = "todolist"
   value_files     = ["gitops/${var.environment}.yaml"]
-  values_object   = local.app_values
 
-  depends_on = [module.argocd, module.alb, module.dns, module.eso]
+  tags = local.common_tags
+
+  # The Argo CD Application is created once Argo CD, the ALB, and DNS exist. The ClusterSecretStore
+  # (module.eso) is created after this module (it reads the app's secret ARNs), so Argo CD may briefly
+  # fail the ExternalSecret until the store appears, then self-heals.
+  depends_on = [module.argocd, module.alb, module.dns]
 }
