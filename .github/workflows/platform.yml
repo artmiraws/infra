@@ -32,9 +32,9 @@ on:
 permissions:
   contents: read
 
-# One platform run at a time; the S3 state lock is the second line of defence.
+# One platform run at a time per environment; the S3 state lock is the second line of defence.
 concurrency:
-  group: platform-dev
+  group: platform-${{ github.event.inputs.environment || 'dev' }}
   cancel-in-progress: false
 
 env:
