@@ -93,3 +93,89 @@ module "arc_docs" {
 
   depends_on = [module.arc, module.eso]
 }
+
+# The docs pipeline applies the static-site infrastructure (S3 + CloudFront + ACM + Route53) and syncs
+# the built site, so its runner needs those services. See the platform-docs repository.
+data "aws_iam_policy_document" "docs_deploy" {
+  statement {
+    sid       = "SiteBucket"
+    actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
+    resources = ["arn:aws:s3:::platform-docs-*"]
+  }
+
+  statement {
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    resources = ["arn:aws:s3:::platform-docs-*/*"]
+  }
+
+  statement {
+    sid       = "StateBucket"
+    actions   = ["s3:ListBucket"]
+    resources = ["arn:aws:s3:::${var.project}-tfstate-${data.aws_caller_identity.current.account_id}"]
+  }
+
+  statement {
+    actions = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    resources = [
+      "arn:aws:s3:::${var.project}-tfstate-${data.aws_caller_identity.current.account_id}/platform-docs/*",
+    ]
+  }
+
+  statement {
+    sid = "CloudFront"
+    actions = [
+      "cloudfront:CreateDistribution",
+      "cloudfront:GetDistribution",
+      "cloudfront:GetDistributionConfig",
+      "cloudfront:UpdateDistribution",
+      "cloudfront:DeleteDistribution",
+      "cloudfront:CreateInvalidation",
+      "cloudfront:GetInvalidation",
+      "cloudfront:ListDistributions",
+      "cloudfront:TagResource",
+      "cloudfront:ListTagsForResource",
+      "cloudfront:CreateOriginAccessControl",
+      "cloudfront:GetOriginAccessControl",
+      "cloudfront:UpdateOriginAccessControl",
+      "cloudfront:DeleteOriginAccessControl",
+      "cloudfront:ListOriginAccessControls",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "Acm"
+    actions = [
+      "acm:RequestCertificate",
+      "acm:DescribeCertificate",
+      "acm:AddTagsToCertificate",
+      "acm:ListTagsForCertificate",
+      "acm:DeleteCertificate",
+      "acm:ListCertificates",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "Route53Records"
+    actions   = ["route53:ChangeResourceRecordSets", "route53:ListResourceRecordSets", "route53:GetHostedZone"]
+    resources = ["arn:aws:route53:::hostedzone/${data.aws_route53_zone.this.zone_id}"]
+  }
+
+  statement {
+    sid       = "Route53List"
+    actions   = ["route53:ListHostedZones", "route53:ListHostedZonesByName"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "docs_deploy" {
+  name   = "${var.cluster_name}-arc-runner-docs-deploy"
+  policy = data.aws_iam_policy_document.docs_deploy.json
+  tags   = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "docs_deploy" {
+  role       = module.arc_docs.runner_role_name
+  policy_arn = aws_iam_policy.docs_deploy.arn
+}
