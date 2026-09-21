@@ -70,3 +70,26 @@ resource "aws_ssm_parameter" "docs" {
   value = each.value
   tags  = local.common_tags
 }
+
+# GitHub self-hosted runners are repository-scoped, so the platform-docs repository needs its own
+# scale set (the app runner registers to the app repository). Shares the ARC controller and the
+# GitHub App secret created by modules/arc.
+module "arc_docs" {
+  source = "../../modules/arc-runner"
+
+  name                  = "docs"
+  cluster_name          = module.eks.cluster_name
+  cluster_arn           = module.eks.cluster_arn
+  oidc_provider_arn     = module.eks.oidc_provider_arn
+  oidc_issuer           = module.eks.oidc_issuer
+  ecr_repository_arn    = module.ecr_docs.repository_arn
+  github_config_url     = var.platform_docs_repo_url
+  runner_scale_set_name = "arc-docs-runner"
+  release_name          = "arc-docs-runner"
+  service_account_name  = "arc-docs-runner"
+  ssm_parameter_path    = "/${var.project}/${var.environment}"
+
+  tags = local.common_tags
+
+  depends_on = [module.arc, module.eso]
+}
