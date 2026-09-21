@@ -98,41 +98,43 @@ module "arc_docs" {
 # the built site, so its runner needs those services. See the platform-docs repository.
 data "aws_iam_policy_document" "docs_deploy" {
   statement {
-    sid = "SiteBucket"
-    actions = [
-      "s3:ListBucket",
-      "s3:GetBucketLocation",
-      "s3:CreateBucket",
-      "s3:DeleteBucket",
-      "s3:GetBucketPolicy",
-      "s3:PutBucketPolicy",
-      "s3:DeleteBucketPolicy",
-      "s3:GetBucketVersioning",
-      "s3:PutBucketVersioning",
-      "s3:GetBucketPublicAccessBlock",
-      "s3:PutBucketPublicAccessBlock",
-      "s3:GetEncryptionConfiguration",
-      "s3:PutEncryptionConfiguration",
-      "s3:GetBucketTagging",
-      "s3:PutBucketTagging",
-      "s3:GetBucketAcl",
-    ]
+    sid       = "SiteBucket"
+    actions   = ["s3:ListBucket*", "s3:GetBucket*", "s3:PutBucket*", "s3:DeleteBucket*"]
     resources = ["arn:aws:s3:::platform-docs-*"]
   }
 
   statement {
-    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    actions = [
+      "s3:GetObject*",
+      "s3:PutObject*",
+      "s3:DeleteObject*",
+      "s3:AbortMultipartUpload",
+      "s3:ListMultipartUploadParts",
+    ]
     resources = ["arn:aws:s3:::platform-docs-*/*"]
   }
 
   statement {
     sid       = "StateBucket"
-    actions   = ["s3:ListBucket"]
+    actions   = ["s3:ListBucket*", "s3:GetBucket*"]
     resources = ["arn:aws:s3:::${var.project}-tfstate-${data.aws_caller_identity.current.account_id}"]
   }
 
+  # CloudFront creates a service-linked role on first use.
   statement {
-    actions = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    sid       = "ServiceLinkedRole"
+    actions   = ["iam:CreateServiceLinkedRole"]
+    resources = ["arn:aws:iam::*:role/aws-service-role/cloudfront.amazonaws.com/*"]
+
+    condition {
+      test     = "StringLike"
+      variable = "iam:AWSServiceName"
+      values   = ["cloudfront.amazonaws.com"]
+    }
+  }
+
+  statement {
+    actions = ["s3:GetObject*", "s3:PutObject*", "s3:DeleteObject*"]
     resources = [
       "arn:aws:s3:::${var.project}-tfstate-${data.aws_caller_identity.current.account_id}/platform-docs/*",
     ]
@@ -174,8 +176,14 @@ data "aws_iam_policy_document" "docs_deploy" {
   }
 
   statement {
-    sid       = "Route53Records"
-    actions   = ["route53:ChangeResourceRecordSets", "route53:ListResourceRecordSets", "route53:GetHostedZone"]
+    sid = "Route53Records"
+    actions = [
+      "route53:ChangeResourceRecordSets",
+      "route53:ListResourceRecordSets",
+      "route53:GetHostedZone",
+      "route53:ListTagsForResource",
+      "route53:ListTagsForResources",
+    ]
     resources = ["arn:aws:route53:::hostedzone/${data.aws_route53_zone.this.zone_id}"]
   }
 
