@@ -99,24 +99,13 @@ module "arc_docs" {
 data "aws_iam_policy_document" "docs_deploy" {
   statement {
     sid       = "SiteBucket"
-    actions   = ["s3:ListBucket*", "s3:GetBucket*", "s3:PutBucket*", "s3:DeleteBucket*"]
-    resources = ["arn:aws:s3:::platform-docs-*"]
-  }
-
-  statement {
-    actions = [
-      "s3:GetObject*",
-      "s3:PutObject*",
-      "s3:DeleteObject*",
-      "s3:AbortMultipartUpload",
-      "s3:ListMultipartUploadParts",
-    ]
-    resources = ["arn:aws:s3:::platform-docs-*/*"]
+    actions   = ["s3:*"]
+    resources = ["arn:aws:s3:::platform-docs-*", "arn:aws:s3:::platform-docs-*/*"]
   }
 
   statement {
     sid       = "StateBucket"
-    actions   = ["s3:ListBucket*", "s3:GetBucket*"]
+    actions   = ["s3:*"]
     resources = ["arn:aws:s3:::${var.project}-tfstate-${data.aws_caller_identity.current.account_id}"]
   }
 
@@ -134,62 +123,27 @@ data "aws_iam_policy_document" "docs_deploy" {
   }
 
   statement {
-    actions = ["s3:GetObject*", "s3:PutObject*", "s3:DeleteObject*"]
+    actions = ["s3:*"]
     resources = [
       "arn:aws:s3:::${var.project}-tfstate-${data.aws_caller_identity.current.account_id}/platform-docs/*",
     ]
   }
 
   statement {
-    sid = "CloudFront"
-    actions = [
-      "cloudfront:CreateDistribution",
-      "cloudfront:GetDistribution",
-      "cloudfront:GetDistributionConfig",
-      "cloudfront:UpdateDistribution",
-      "cloudfront:DeleteDistribution",
-      "cloudfront:CreateInvalidation",
-      "cloudfront:GetInvalidation",
-      "cloudfront:ListDistributions",
-      "cloudfront:TagResource",
-      "cloudfront:ListTagsForResource",
-      "cloudfront:CreateOriginAccessControl",
-      "cloudfront:GetOriginAccessControl",
-      "cloudfront:UpdateOriginAccessControl",
-      "cloudfront:DeleteOriginAccessControl",
-      "cloudfront:ListOriginAccessControls",
-    ]
+    sid       = "CloudFront"
+    actions   = ["cloudfront:*"]
     resources = ["*"]
   }
 
   statement {
-    sid = "Acm"
-    actions = [
-      "acm:RequestCertificate",
-      "acm:DescribeCertificate",
-      "acm:AddTagsToCertificate",
-      "acm:ListTagsForCertificate",
-      "acm:DeleteCertificate",
-      "acm:ListCertificates",
-    ]
+    sid       = "Acm"
+    actions   = ["acm:*"]
     resources = ["*"]
   }
 
   statement {
-    sid = "Route53Records"
-    actions = [
-      "route53:ChangeResourceRecordSets",
-      "route53:ListResourceRecordSets",
-      "route53:GetHostedZone",
-      "route53:ListTagsForResource",
-      "route53:ListTagsForResources",
-    ]
-    resources = ["arn:aws:route53:::hostedzone/${data.aws_route53_zone.this.zone_id}"]
-  }
-
-  statement {
-    sid       = "Route53List"
-    actions   = ["route53:ListHostedZones", "route53:ListHostedZonesByName"]
+    sid       = "Route53"
+    actions   = ["route53:*"]
     resources = ["*"]
   }
 }
