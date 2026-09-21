@@ -76,7 +76,7 @@ module "arc" {
   github_app_secret_name = var.github_app_secret_name
   runner_scale_set_name  = var.runner_scale_set_name
 
-  ssm_parameter_path = "/${var.project}/${var.environment}"
+  ssm_parameter_path = "/platform/${var.environment}"
 
   tags = local.common_tags
 

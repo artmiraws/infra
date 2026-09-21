@@ -80,7 +80,7 @@ module "arc" {
   runner_scale_set_name     = var.runner_scale_set_name
   extra_ecr_repository_arns = [module.ecr_docs.repository_arn]
 
-  ssm_parameter_path = "/${var.project}/${var.environment}"
+  ssm_parameter_path = "/platform/${var.environment}"
 
   tags = local.common_tags
 

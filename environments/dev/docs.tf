@@ -38,9 +38,8 @@ locals {
   }
 
   docs_ssm_parameters = {
-    app_hostname            = module.acm_docs.hostname
-    ingress_certificate_arn = module.acm_docs.certificate_arn
-    ecr_repository_url      = module.ecr_docs.repository_url
+    hostname         = "docs.${var.base_domain}"
+    runner_scale_set = module.arc_docs.runner_scale_set_name
   }
 }
 
@@ -65,7 +64,7 @@ module "argocd_app_docs" {
 resource "aws_ssm_parameter" "docs" {
   for_each = local.docs_ssm_parameters
 
-  name  = "/${var.project}/${var.environment}/platform-docs/${each.key}"
+  name  = "/platform/${var.environment}/apps/platform-docs/${each.key}"
   type  = "String"
   value = each.value
   tags  = local.common_tags
@@ -87,7 +86,7 @@ module "arc_docs" {
   runner_scale_set_name = "arc-docs-runner"
   release_name          = "arc-docs-runner"
   service_account_name  = "arc-docs-runner"
-  ssm_parameter_path    = "/${var.project}/${var.environment}"
+  ssm_parameter_path    = "/platform/${var.environment}"
 
   tags = local.common_tags
 
